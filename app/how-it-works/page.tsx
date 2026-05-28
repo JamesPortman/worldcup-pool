@@ -2,7 +2,7 @@ import Navigation from "@/components/Navigation";
 import HeroBanner from "@/components/HeroBanner";
 import { ROUNDS, PICKS_PER_ROUND } from "@/data/worldcup2026";
 
-const DISPLAY_ROUNDS = ROUNDS.filter((r) => r.key !== "FINAL4");
+const DISPLAY_ROUNDS = ROUNDS;
 
 export const metadata = { title: "How it works — World Cup Pool" };
 
@@ -23,10 +23,11 @@ export default async function HowItWorks({
         <p>One person creates the pool and gets a 6-character join code. Share the code with friends — they enter it plus their display name to join. No accounts, no passwords.</p>
 
         <h2 className="text-xl font-semibold mt-6 mb-2">2. Make your picks before kickoff</h2>
-        <p>You make three sets of picks:</p>
+        <p>You make four sets of picks:</p>
         <ul>
           <li><strong>Group Winners</strong> — pick who wins each of the 12 groups</li>
-          <li><strong>Semi-Final</strong> — from your group winners, pick the 2 finalists</li>
+          <li><strong>Final 4</strong> — from your group winners, pick the 4 semi-finalists</li>
+          <li><strong>Semi-Final</strong> — from your Final 4, pick the 2 finalists</li>
           <li><strong>Winner</strong> — from your finalists, pick the tournament champion</li>
         </ul>
         <p>You can edit your picks any time until the admin locks the pool before kickoff.</p>

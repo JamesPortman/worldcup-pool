@@ -5,8 +5,7 @@ import { prisma } from "@/lib/db";
 import { scoreAllPicks } from "@/lib/scoring";
 import { ROUNDS, type RoundKey } from "@/data/worldcup2026";
 
-// FINAL4 is not pickable in the UI so we hide it from the leaderboard columns.
-const DISPLAY_ROUNDS = ROUNDS.filter((r) => r.key !== "FINAL4");
+const DISPLAY_ROUNDS = ROUNDS;
 
 export const dynamic = "force-dynamic";
 
