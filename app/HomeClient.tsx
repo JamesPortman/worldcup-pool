@@ -27,8 +27,9 @@ export default function HomeClient() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ poolName, displayName: creatorName }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Could not create pool");
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
+      if (!res.ok) throw new Error(data.error ?? `Server error ${res.status} — check Vercel logs`);
       router.push(`/pools/${data.joinCode}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -48,8 +49,9 @@ export default function HomeClient() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ displayName: joinName }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Could not join pool");
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
+      if (!res.ok) throw new Error(data.error ?? `Server error ${res.status} — check Vercel logs`);
       router.push(`/pools/${code}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
