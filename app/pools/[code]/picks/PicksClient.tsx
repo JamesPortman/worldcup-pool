@@ -212,36 +212,35 @@ export default function PicksClient({
       {/* Sticky footer */}
       <div className="sticky bottom-0 -mx-4 px-4 py-3 bg-white/95 dark:bg-neutral-950/95 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          {/* Reset picks — two-click confirm */}
-          {!locked && (
-            confirmReset ? (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-red-600 dark:text-red-400">Clear all picks?</span>
-                <button
-                  type="button"
-                  onClick={resetPicks}
-                  disabled={resetting}
-                  className="rounded-md bg-red-600 text-white px-3 py-1.5 text-sm font-medium hover:bg-red-700 disabled:opacity-60"
-                >
-                  {resetting ? "Clearing…" : "Yes, clear"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmReset(false)}
-                  className="rounded-md border border-neutral-300 dark:border-neutral-600 px-3 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                >
-                  Cancel
-                </button>
-              </div>
-            ) : (
+          {/* Reset picks — always visible, two-click confirm when unlocked */}
+          {confirmReset && !locked ? (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-red-600 dark:text-red-400">Clear all picks?</span>
               <button
                 type="button"
-                onClick={() => { setConfirmReset(true); setSaved(false); }}
-                className="rounded-md border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 px-3 py-1.5 text-sm hover:bg-red-50 dark:hover:bg-red-900/20"
+                onClick={resetPicks}
+                disabled={resetting}
+                className="rounded-md bg-red-600 text-white px-3 py-1.5 text-sm font-medium hover:bg-red-700 disabled:opacity-60"
               >
-                Reset picks
+                {resetting ? "Clearing…" : "Yes, clear"}
               </button>
-            )
+              <button
+                type="button"
+                onClick={() => setConfirmReset(false)}
+                className="rounded-md border border-neutral-300 dark:border-neutral-600 px-3 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => { setConfirmReset(true); setSaved(false); }}
+              disabled={locked}
+              className="rounded-md border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 px-3 py-1.5 text-sm hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Reset picks
+            </button>
           )}
           {error && <span className="text-sm text-red-600 dark:text-red-400">{error}</span>}
         </div>
