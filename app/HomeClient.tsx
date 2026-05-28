@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 export default function HomeClient() {
   const router = useRouter();
-  const [mode, setMode] = useState<"create" | "join">("create");
+  const [mode, setMode] = useState<"create" | "join">("join");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
