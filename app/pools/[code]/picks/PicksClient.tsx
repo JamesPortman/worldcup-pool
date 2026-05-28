@@ -8,6 +8,10 @@ import { ROUNDS, PICKS_PER_ROUND, groups, type RoundKey } from "@/data/worldcup2
 interface TeamLite { code: string; name: string; group: string; }
 interface ExistingPick { round: string; teamCode: string; groupId: string | null; }
 
+// FINAL4 is hidden from the UI — picks go GROUP → SEMIFINAL → WINNER
+const SEMIFINAL_META = ROUNDS.find((r) => r.key === "SEMIFINAL")!;
+const WINNER_META    = ROUNDS.find((r) => r.key === "WINNER")!;
+
 export default function PicksClient({
   poolCode,
   locked,
@@ -26,62 +30,119 @@ export default function PicksClient({
     return m;
   }, [teams]);
 
+  const teamByCode = useMemo(() => {
+    const m: Record<string, TeamLite> = {};
+    for (const t of teams) m[t.code] = t;
+    return m;
+  }, [teams]);
+
   // GROUP picks keyed by groupId → teamCode
   const initialGroupPicks: Record<string, string> = {};
-  for (const p of existingPicks) if (p.round === "GROUP" && p.groupId) initialGroupPicks[p.groupId] = p.teamCode;
+  for (const p of existingPicks)
+    if (p.round === "GROUP" && p.groupId) initialGroupPicks[p.groupId] = p.teamCode;
   const [groupPicks, setGroupPicks] = useState<Record<string, string>>(initialGroupPicks);
 
-  // Non-group rounds: Set of selected team codes per round
-  const initialRoundPicks: Record<Exclude<RoundKey, "GROUP">, Set<string>> = {
-    FINAL4: new Set(), SEMIFINAL: new Set(), WINNER: new Set(),
-  };
-  for (const p of existingPicks) {
-    if (p.round !== "GROUP" && p.round in initialRoundPicks) {
-      initialRoundPicks[p.round as Exclude<RoundKey, "GROUP">].add(p.teamCode);
-    }
-  }
-  const [roundPicks, setRoundPicks] = useState(initialRoundPicks);
+  // SEMIFINAL picks: Set of selected team codes
+  const initialSemifinal = new Set<string>();
+  for (const p of existingPicks)
+    if (p.round === "SEMIFINAL") initialSemifinal.add(p.teamCode);
 
-  const [saving, setSaving] = useState(false);
-  const [resetting, setResetting] = useState(false);
+  // WINNER picks: Set (max 1)
+  const initialWinner = new Set<string>();
+  for (const p of existingPicks)
+    if (p.round === "WINNER") initialWinner.add(p.teamCode);
+
+  const [semifinalPicks, setSemifinalPicks] = useState<Set<string>>(initialSemifinal);
+  const [winnerPick,     setWinnerPick]     = useState<Set<string>>(initialWinner);
+
+  const [saving,       setSaving]       = useState(false);
+  const [resetting,    setResetting]    = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [error,        setError]        = useState<string | null>(null);
+  const [saved,        setSaved]        = useState(false);
 
-  // Prerequisite counts
-  const groupPickCount = Object.values(groupPicks).filter(Boolean).length;
-  const final4Unlocked  = groupPickCount === 12;
-  const semifinalUnlocked = roundPicks.FINAL4.size === PICKS_PER_ROUND.FINAL4;
-  const winnerUnlocked    = roundPicks.SEMIFINAL.size === PICKS_PER_ROUND.SEMIFINAL;
+  // Derived: how many groups have been picked
+  const groupPickCount = useMemo(
+    () => Object.values(groupPicks).filter(Boolean).length,
+    [groupPicks],
+  );
 
-  const roundUnlocked: Record<Exclude<RoundKey, "GROUP">, boolean> = {
-    FINAL4:    final4Unlocked,
-    SEMIFINAL: semifinalUnlocked,
-    WINNER:    winnerUnlocked,
-  };
+  // The 12 (or fewer) group-winner teams available for SEMIFINAL
+  const semifinalOptions = useMemo(
+    () =>
+      groups
+        .map((g) => groupPicks[g])
+        .filter(Boolean)
+        .map((code) => teamByCode[code])
+        .filter(Boolean) as TeamLite[],
+    [groupPicks, teamByCode],
+  );
 
-  const prereqMessage: Record<Exclude<RoundKey, "GROUP">, string> = {
-    FINAL4:    `Complete all 12 Group Winner picks first (${groupPickCount}/12 done).`,
-    SEMIFINAL: `Complete your Final 4 picks first (${roundPicks.FINAL4.size}/4 done).`,
-    WINNER:    `Complete your Semi-Final picks first (${roundPicks.SEMIFINAL.size}/2 done).`,
-  };
+  // The 2 (or fewer) finalist teams available for WINNER
+  const winnerOptions = useMemo(
+    () =>
+      Array.from(semifinalPicks)
+        .map((code) => teamByCode[code])
+        .filter(Boolean) as TeamLite[],
+    [semifinalPicks, teamByCode],
+  );
 
-  function toggleRoundPick(round: Exclude<RoundKey, "GROUP">, code: string) {
-    if (locked || !roundUnlocked[round]) return;
-    setRoundPicks((prev) => {
-      const next = { ...prev };
-      const set = new Set(next[round]);
-      if (set.has(code)) set.delete(code);
-      else {
-        if (set.size >= PICKS_PER_ROUND[round]) return prev;
-        set.add(code);
+  // Progressive reveal flags
+  const semifinalUnlocked = groupPickCount === 12;
+  const winnerUnlocked    = semifinalPicks.size === PICKS_PER_ROUND.SEMIFINAL;
+
+  // ── Group pick handler (with cascade clear) ──────────────────────────────
+  function handleGroupChange(groupId: string, teamCode: string) {
+    if (locked) return;
+    const newGroupPicks = { ...groupPicks, [groupId]: teamCode };
+    setGroupPicks(newGroupPicks);
+
+    // Cascade: remove any SEMIFINAL picks no longer in the new group-winner set
+    const newWinners = new Set(Object.values(newGroupPicks).filter(Boolean));
+    setSemifinalPicks((prev) => {
+      const filtered = new Set([...prev].filter((c) => newWinners.has(c)));
+      // Also cascade to WINNER
+      setWinnerPick((prevW) => new Set([...prevW].filter((c) => filtered.has(c))));
+      return filtered;
+    });
+    setSaved(false);
+  }
+
+  // ── Semifinal toggle (with cascade clear on WINNER) ──────────────────────
+  function toggleSemifinal(code: string) {
+    if (locked || !semifinalUnlocked) return;
+    setSemifinalPicks((prev) => {
+      const next = new Set(prev);
+      if (next.has(code)) {
+        next.delete(code);
+        // Clear winner if it was this team
+        setWinnerPick((prevW) => new Set([...prevW].filter((c) => next.has(c))));
+      } else {
+        if (next.size >= PICKS_PER_ROUND.SEMIFINAL) return prev;
+        next.add(code);
       }
-      next[round] = set;
       return next;
     });
     setSaved(false);
   }
 
+  // ── Winner toggle ─────────────────────────────────────────────────────────
+  function toggleWinner(code: string) {
+    if (locked || !winnerUnlocked) return;
+    setWinnerPick((prev) => {
+      const next = new Set(prev);
+      if (next.has(code)) {
+        next.delete(code);
+      } else {
+        if (next.size >= PICKS_PER_ROUND.WINNER) return prev;
+        next.add(code);
+      }
+      return next;
+    });
+    setSaved(false);
+  }
+
+  // ── Reset ─────────────────────────────────────────────────────────────────
   async function resetPicks() {
     if (locked) return;
     setResetting(true);
@@ -96,11 +157,13 @@ export default function PicksClient({
     setResetting(false);
     if (!res.ok) { setError(data.error ?? "Reset failed"); return; }
     setGroupPicks({});
-    setRoundPicks({ FINAL4: new Set(), SEMIFINAL: new Set(), WINNER: new Set() });
+    setSemifinalPicks(new Set());
+    setWinnerPick(new Set());
     setConfirmReset(false);
     router.refresh();
   }
 
+  // ── Save ──────────────────────────────────────────────────────────────────
   async function save() {
     if (locked) return;
     setSaving(true);
@@ -110,9 +173,9 @@ export default function PicksClient({
     for (const [groupId, teamCode] of Object.entries(groupPicks)) {
       if (teamCode) picks.push({ round: "GROUP", teamCode, groupId });
     }
-    for (const round of ["FINAL4","SEMIFINAL","WINNER"] as const) {
-      for (const code of roundPicks[round]) picks.push({ round, teamCode: code });
-    }
+    for (const code of semifinalPicks) picks.push({ round: "SEMIFINAL", teamCode: code });
+    for (const code of winnerPick)     picks.push({ round: "WINNER",    teamCode: code });
+
     const res = await fetch(`/api/pools/${poolCode}/picks`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -125,23 +188,25 @@ export default function PicksClient({
     router.refresh();
   }
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="mt-6 space-y-10">
-      {/* Group winners */}
+    <div className="mt-4 sm:mt-6 space-y-8 sm:space-y-10 pb-24">
+
+      {/* ── Group Winners ── */}
       <section>
         <SectionHeader
           title="Group Winners"
-          subtitle={`Pick the team you think wins each group. (${ROUNDS[0].points} point each) — ${groupPickCount}/12 picked.`}
+          subtitle={`Pick the team you think wins each group. (${ROUNDS[0].points} pt each) — ${groupPickCount}/12 picked.`}
         />
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {groups.map((g) => (
             <div key={g} className="rounded-lg border border-neutral-300 dark:border-neutral-700 p-3">
               <div className="text-xs uppercase tracking-wide text-neutral-500 mb-1">Group {g}</div>
               <select
                 disabled={locked}
                 value={groupPicks[g] ?? ""}
-                onChange={(e) => { setGroupPicks({ ...groupPicks, [g]: e.target.value }); setSaved(false); }}
-                className="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-1.5"
+                onChange={(e) => handleGroupChange(g, e.target.value)}
+                className="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-2 text-sm"
               >
                 <option value="">— pick winner —</option>
                 {(teamsByGroup[g] ?? []).map((t) => (
@@ -153,119 +218,153 @@ export default function PicksClient({
         </div>
       </section>
 
-      {/* Knockout rounds */}
-      {(["FINAL4", "SEMIFINAL", "WINNER"] as const).map((round) => {
-        const meta = ROUNDS.find((r) => r.key === round)!;
-        const limit = PICKS_PER_ROUND[round];
-        const picked = roundPicks[round];
-        const unlocked = roundUnlocked[round];
+      {/* ── Semi-Final (unlocks after all 12 groups) ── */}
+      {semifinalUnlocked && (
+        <section>
+          <SectionHeader
+            title={SEMIFINAL_META.label}
+            subtitle={`Pick the 2 teams that reach the Final from your group winners. (${SEMIFINAL_META.points} pts each) — ${semifinalPicks.size}/${PICKS_PER_ROUND.SEMIFINAL} selected.`}
+          />
+          <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
+            {semifinalOptions.map((t) => {
+              const selected = semifinalPicks.has(t.code);
+              const full     = semifinalPicks.size >= PICKS_PER_ROUND.SEMIFINAL;
+              const disabled = locked || (!selected && full);
+              return (
+                <button
+                  key={t.code}
+                  type="button"
+                  onClick={() => toggleSemifinal(t.code)}
+                  disabled={disabled}
+                  className={[
+                    "text-left rounded-md border px-3 py-2.5 text-sm transition-colors",
+                    selected
+                      ? "border-[color:var(--color-brand)] bg-[color:var(--color-brand)]/10"
+                      : "border-neutral-300 dark:border-neutral-700",
+                    disabled && !selected
+                      ? "opacity-30 cursor-not-allowed"
+                      : "hover:border-[color:var(--color-brand)] cursor-pointer",
+                  ].join(" ")}
+                >
+                  <span className="font-medium block">{t.name}</span>
+                  <span className="text-xs text-neutral-500">Group {t.group}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
-        const label =
-          round === "WINNER"
-            ? "Pick the tournament winner. (16 points)"
-            : round === "SEMIFINAL"
-            ? `Pick the 2 teams that reach the final. (${meta.points} points each)`
-            : `Pick the 4 semi-finalists. (${meta.points} points each)`;
+      {/* ── Winner / Final (unlocks after 2 semifinal picks) ── */}
+      {winnerUnlocked && (
+        <section>
+          <SectionHeader
+            title={WINNER_META.label}
+            subtitle={`Pick the tournament champion from your two finalists. (${WINNER_META.points} pts) — ${winnerPick.size}/${PICKS_PER_ROUND.WINNER} selected.`}
+          />
+          <div className="grid gap-2 grid-cols-2">
+            {winnerOptions.map((t) => {
+              const selected = winnerPick.has(t.code);
+              const full     = winnerPick.size >= PICKS_PER_ROUND.WINNER;
+              const disabled = locked || (!selected && full);
+              return (
+                <button
+                  key={t.code}
+                  type="button"
+                  onClick={() => toggleWinner(t.code)}
+                  disabled={disabled}
+                  className={[
+                    "text-left rounded-md border px-4 py-3 text-sm transition-colors",
+                    selected
+                      ? "border-[color:var(--color-brand)] bg-[color:var(--color-brand)]/10"
+                      : "border-neutral-300 dark:border-neutral-700",
+                    disabled && !selected
+                      ? "opacity-30 cursor-not-allowed"
+                      : "hover:border-[color:var(--color-brand)] cursor-pointer",
+                  ].join(" ")}
+                >
+                  <span className="font-semibold block text-base">{t.name}</span>
+                  <span className="text-xs text-neutral-500">Group {t.group}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
-        return (
-          <section key={round}>
-            <SectionHeader
-              title={meta.label}
-              subtitle={unlocked ? `${label} — ${picked.size}/${limit} selected.` : label}
-            />
+      {/* ── Locked-but-incomplete sections: show helpful hints ── */}
+      {!semifinalUnlocked && (
+        <div className="rounded-md bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 px-4 py-3 text-sm text-neutral-500">
+          Complete all 12 Group Winner picks to unlock the Semi-Final section. ({groupPickCount}/12 done)
+        </div>
+      )}
+      {semifinalUnlocked && !winnerUnlocked && (
+        <div className="rounded-md bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-700 px-4 py-3 text-sm text-neutral-500">
+          Pick both Semi-Final teams to unlock the Winner section. ({semifinalPicks.size}/2 done)
+        </div>
+      )}
 
-            {/* Prerequisite lock banner */}
-            {!unlocked && !locked && (
-              <div className="rounded-md bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 px-4 py-3 text-sm text-amber-800 dark:text-amber-200 mb-4">
-                🔒 {prereqMessage[round]}
+      {/* ── Sticky footer ── */}
+      <div className="fixed bottom-0 left-0 right-0 z-20 px-4 py-3 bg-white/95 dark:bg-neutral-950/95 border-t border-neutral-200 dark:border-neutral-800">
+        <div className="mx-auto max-w-4xl flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Reset picks — always visible, disabled when locked */}
+            {confirmReset && !locked ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-red-600 dark:text-red-400">Clear all picks?</span>
+                <button
+                  type="button"
+                  onClick={resetPicks}
+                  disabled={resetting}
+                  className="rounded-md bg-red-600 text-white px-3 py-1.5 text-sm font-medium hover:bg-red-700 disabled:opacity-60"
+                >
+                  {resetting ? "Clearing…" : "Yes, clear"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmReset(false)}
+                  className="rounded-md border border-neutral-300 dark:border-neutral-600 px-3 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                >
+                  Cancel
+                </button>
               </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => { setConfirmReset(true); setSaved(false); }}
+                disabled={locked}
+                className="rounded-md border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 px-3 py-1.5 text-sm hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Reset picks
+              </button>
             )}
+            {error && <span className="text-sm text-red-600 dark:text-red-400">{error}</span>}
+          </div>
 
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {teams.map((t) => {
-                const selected = picked.has(t.code);
-                const disabled = locked || !unlocked || (!selected && picked.size >= limit);
-                return (
-                  <button
-                    key={t.code}
-                    type="button"
-                    onClick={() => toggleRoundPick(round, t.code)}
-                    disabled={disabled}
-                    className={[
-                      "text-left rounded-md border px-3 py-2 text-sm",
-                      selected
-                        ? "border-[color:var(--color-brand)] bg-[color:var(--color-brand)]/10"
-                        : "border-neutral-300 dark:border-neutral-700",
-                      disabled && !selected ? "opacity-30 cursor-not-allowed" : "hover:border-[color:var(--color-brand)]",
-                    ].join(" ")}
-                  >
-                    <span className="font-medium">{t.name}</span>
-                    <span className="ml-2 text-xs text-neutral-500">{t.group}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        );
-      })}
-
-      {/* Sticky footer */}
-      <div className="sticky bottom-0 -mx-4 px-4 py-3 bg-white/95 dark:bg-neutral-950/95 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          {/* Reset picks — always visible, two-click confirm when unlocked */}
-          {confirmReset && !locked ? (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-red-600 dark:text-red-400">Clear all picks?</span>
-              <button
-                type="button"
-                onClick={resetPicks}
-                disabled={resetting}
-                className="rounded-md bg-red-600 text-white px-3 py-1.5 text-sm font-medium hover:bg-red-700 disabled:opacity-60"
+          <div className="flex flex-wrap items-center gap-2">
+            {saved && !error && (
+              <span className="text-sm text-[color:var(--color-brand)] font-medium">✓ Picks saved!</span>
+            )}
+            {saved && (
+              <Link
+                href={`/pools/${poolCode}/leaderboard`}
+                className="rounded-md border border-[color:var(--color-brand)] text-[color:var(--color-brand)] px-3 py-1.5 text-sm font-medium hover:bg-[color:var(--color-brand)]/5 whitespace-nowrap"
               >
-                {resetting ? "Clearing…" : "Yes, clear"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirmReset(false)}
-                className="rounded-md border border-neutral-300 dark:border-neutral-600 px-3 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
-              >
-                Cancel
-              </button>
-            </div>
-          ) : (
+                Leaderboard →
+              </Link>
+            )}
             <button
               type="button"
-              onClick={() => { setConfirmReset(true); setSaved(false); }}
-              disabled={locked}
-              className="rounded-md border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 px-3 py-1.5 text-sm hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed"
+              onClick={save}
+              disabled={saving || locked}
+              className="rounded-md bg-[color:var(--color-brand)] text-white px-5 py-2 text-sm font-medium disabled:opacity-60"
             >
-              Reset picks
+              {saving ? "Saving…" : locked ? "Locked" : "Save picks"}
             </button>
-          )}
-          {error && <span className="text-sm text-red-600 dark:text-red-400">{error}</span>}
-        </div>
-        <div className="flex items-center gap-3">
-          {saved && !error && (
-            <span className="text-sm text-[color:var(--color-brand)] font-medium">✓ Picks saved!</span>
-          )}
-          {saved && (
-            <Link
-              href={`/pools/${poolCode}/leaderboard`}
-              className="rounded-md border border-[color:var(--color-brand)] text-[color:var(--color-brand)] px-4 py-2 text-sm font-medium hover:bg-[color:var(--color-brand)]/5"
-            >
-              Go to Leaderboard →
-            </Link>
-          )}
-          <button
-            type="button"
-            onClick={save}
-            disabled={saving || locked}
-            className="rounded-md bg-[color:var(--color-brand)] text-white px-5 py-2 font-medium disabled:opacity-60"
-          >
-            {saving ? "Saving…" : locked ? "Locked" : "Save picks"}
-          </button>
+          </div>
         </div>
       </div>
+
     </div>
   );
 }
@@ -273,7 +372,7 @@ export default function PicksClient({
 function SectionHeader({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <div className="mb-3">
-      <h2 className="text-xl font-semibold">{title}</h2>
+      <h2 className="text-lg sm:text-xl font-semibold">{title}</h2>
       <p className="text-sm text-neutral-600 dark:text-neutral-400">{subtitle}</p>
     </div>
   );

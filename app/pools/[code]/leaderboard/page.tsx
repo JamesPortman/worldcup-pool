@@ -1,8 +1,12 @@
 import { notFound } from "next/navigation";
 import Navigation from "@/components/Navigation";
+import HeroBanner from "@/components/HeroBanner";
 import { prisma } from "@/lib/db";
 import { scoreAllPicks } from "@/lib/scoring";
 import { ROUNDS, type RoundKey } from "@/data/worldcup2026";
+
+// FINAL4 is not pickable in the UI so we hide it from the leaderboard columns.
+const DISPLAY_ROUNDS = ROUNDS.filter((r) => r.key !== "FINAL4");
 
 export const dynamic = "force-dynamic";
 
@@ -32,33 +36,34 @@ export default async function LeaderboardPage({
   return (
     <>
       <Navigation poolCode={pool.joinCode} />
-      <main className="mx-auto max-w-4xl px-4 py-10">
-        <h1 className="text-3xl font-bold">Leaderboard</h1>
-        <p className="mt-1 text-neutral-600 dark:text-neutral-400">
+      <HeroBanner />
+      <main className="mx-auto max-w-4xl px-4 py-6 sm:py-10">
+        <h1 className="text-2xl sm:text-3xl font-bold">Leaderboard</h1>
+        <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
           Updated as the admin enters real-world results.
         </p>
 
-        <div className="mt-6 overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="mt-6 overflow-x-auto -mx-4 px-4">
+          <table className="w-full text-sm min-w-[360px]">
             <thead>
               <tr className="text-left border-b border-neutral-300 dark:border-neutral-700">
                 <th className="py-2 pr-3">#</th>
                 <th className="py-2 pr-3">Player</th>
-                {ROUNDS.map((r) => (
-                  <th key={r.key} className="py-2 px-2 text-right">{r.label}</th>
+                {DISPLAY_ROUNDS.map((r) => (
+                  <th key={r.key} className="py-2 px-2 text-right whitespace-nowrap">{r.label}</th>
                 ))}
-                <th className="py-2 px-2 text-right">Total</th>
+                <th className="py-2 px-2 text-right font-semibold">Total</th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 && (
-                <tr><td className="py-4 text-neutral-500" colSpan={ROUNDS.length + 3}>No players yet.</td></tr>
+                <tr><td className="py-4 text-neutral-500" colSpan={DISPLAY_ROUNDS.length + 3}>No players yet.</td></tr>
               )}
               {rows.map((row, idx) => (
                 <tr key={row.id} className="border-b border-neutral-200 dark:border-neutral-800">
                   <td className="py-2 pr-3 text-neutral-500">{idx + 1}</td>
                   <td className="py-2 pr-3 font-medium">{row.name}</td>
-                  {ROUNDS.map((r) => (
+                  {DISPLAY_ROUNDS.map((r) => (
                     <td key={r.key} className="py-2 px-2 text-right tabular-nums">
                       {row.byRound[r.key as RoundKey]}
                     </td>
