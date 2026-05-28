@@ -1,0 +1,75 @@
+// World Cup pool — Postgres via Neon on Vercel.
+// Run `npm run db:push` after editing, then `npm run db:seed` to load teams.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// One row per group-stage team (48 rows for the 2026 World Cup).
+model Team {
+  code        String   @id          // e.g. "BRA"
+  name        String                // e.g. "Brazil"
+  group       String                // "A".."L"
+  // Which round this team actually reached, set by the admin as the tournament unfolds.
+  // null = hasn't been marked as advancing yet. The string is a RoundKey from data/worldcup2026.ts.
+  reachedRound String?
+  // Whether this team won its group (used for GROUP-round scoring).
+  wonGroup     Boolean  @default(false)
+  // Whether this team won the whole thing (used for FINAL-round scoring).
+  isChampion   Boolean  @default(false)
+
+  picks       Pick[]
+  @@index([group])
+}
+
+// A pool that multiple people share via a join code.
+model Pool {
+  id         String   @id @default(cuid())
+  name       String
+  joinCode   String   @unique               // 6-char human code
+  createdAt  DateTime @default(now())
+  // Once the tournament starts the admin locks the pool; no more picks.
+  locked     Boolean  @default(false)
+  players    Player[]
+}
+
+// A person in a pool — identified only by display name + the pool's join code (no real auth).
+// Browser stores their playerId in a cookie so they can come back and edit picks until locked.
+model Player {
+  id          String   @id @default(cuid())
+  displayName String
+  poolId      String
+  pool        Pool     @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  joinedAt    DateTime @default(now())
+  picks       Pick[]
+
+  @@unique([poolId, displayName])
+  @@index([poolId])
+}
+
+// A pick = "Player X thinks Team Y reaches round R".
+// For GROUP round picks the teamCode is the predicted group winner.
+// For other rounds it's "this team will reach round R".
+model Pick {
+  id        String   @id @default(cuid())
+  playerId  String
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  teamCode  String
+  team      Team     @relation(fields: [teamCode], references: [code])
+  round     String                                                      // RoundKey
+  // For GROUP-round picks, which group this pick is FOR (so "Player picks Brazil to win Group C").
+  // null for non-group rounds.
+  groupId   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([playerId, round, groupId, teamCode])
+  @@index([playerId])
+  @@index([round])
+}
