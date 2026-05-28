@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "World Cup Pool",
-  description: "Pick your bracket for the 2026 FIFA World Cup. Invite friends with a pool code.",
+  title: "2026 FIFA World Cup Pool — USA · Mexico · Canada",
+  description: "Pick your bracket for the 2026 FIFA World Cup hosted by USA, Mexico & Canada. Create a pool and share the join code with friends.",
 };
 
 // Inline script: set the dark class before paint to avoid a flash of light theme.
