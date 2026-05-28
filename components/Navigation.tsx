@@ -17,7 +17,7 @@ export default function Navigation({ poolCode }: { poolCode?: string }) {
               <Link href={`${base}/leaderboard`} className="hover:underline">Leaderboard</Link>
             </>
           )}
-          <Link href="/how-it-works" className="hover:underline">How it works</Link>
+          <Link href="/how-it-works" target="_blank" rel="noopener noreferrer" className="hover:underline">How it works</Link>
           <ThemeToggle />
         </nav>
       </div>
