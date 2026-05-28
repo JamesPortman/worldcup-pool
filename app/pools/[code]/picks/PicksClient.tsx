@@ -29,6 +29,7 @@ export default function PicksClient({
   const teamsByGroup = useMemo(() => {
     const m: Record<string, TeamLite[]> = {};
     for (const t of teams) (m[t.group] ??= []).push(t);
+    for (const g of Object.keys(m)) m[g].sort((a, b) => a.name.localeCompare(b.name));
     return m;
   }, [teams]);
 
@@ -74,32 +75,35 @@ export default function PicksClient({
   const winnerUnlocked    = semifinalPicks.size === PICKS_PER_ROUND.SEMIFINAL; // 2
 
   // ── Filtered option lists ─────────────────────────────────────────────────
-  // Final 4 options = the 12 group winners you picked
+  // Final 4 options = the 12 group winners you picked, sorted alphabetically
   const final4Options = useMemo(
     () =>
       groups
         .map((g) => groupPicks[g])
         .filter(Boolean)
         .map((code) => teamByCode[code])
-        .filter(Boolean) as TeamLite[],
+        .filter(Boolean)
+        .sort((a, b) => (a as TeamLite).name.localeCompare((b as TeamLite).name)) as TeamLite[],
     [groupPicks, teamByCode],
   );
 
-  // Semi-Final options = the 4 Final 4 picks
+  // Semi-Final options = the 4 Final 4 picks, sorted alphabetically
   const semifinalOptions = useMemo(
     () =>
       Array.from(final4Picks)
         .map((code) => teamByCode[code])
-        .filter(Boolean) as TeamLite[],
+        .filter(Boolean)
+        .sort((a, b) => (a as TeamLite).name.localeCompare((b as TeamLite).name)) as TeamLite[],
     [final4Picks, teamByCode],
   );
 
-  // Winner options = the 2 Semi-Final picks
+  // Winner options = the 2 Semi-Final picks, sorted alphabetically
   const winnerOptions = useMemo(
     () =>
       Array.from(semifinalPicks)
         .map((code) => teamByCode[code])
-        .filter(Boolean) as TeamLite[],
+        .filter(Boolean)
+        .sort((a, b) => (a as TeamLite).name.localeCompare((b as TeamLite).name)) as TeamLite[],
     [semifinalPicks, teamByCode],
   );
 
@@ -279,6 +283,7 @@ export default function PicksClient({
                   selected={selected}
                   disabled={disabled}
                   onClick={() => toggleFinal4(t.code)}
+                  showGroup={false}
                 />
               );
             })}
@@ -311,6 +316,7 @@ export default function PicksClient({
                   selected={selected}
                   disabled={disabled}
                   onClick={() => toggleSemifinal(t.code)}
+                  showGroup={false}
                 />
               );
             })}
@@ -343,6 +349,7 @@ export default function PicksClient({
                   selected={selected}
                   disabled={disabled}
                   onClick={() => toggleWinner(t.code)}
+                  showGroup={false}
                 />
               );
             })}
@@ -418,12 +425,13 @@ export default function PicksClient({
 
 // ── Shared team toggle button ─────────────────────────────────────────────────
 function TeamButton({
-  team, selected, disabled, onClick,
+  team, selected, disabled, onClick, showGroup = true,
 }: {
   team: TeamLite;
   selected: boolean;
   disabled: boolean;
   onClick: () => void;
+  showGroup?: boolean;
 }) {
   return (
     <button
@@ -440,8 +448,8 @@ function TeamButton({
           : "hover:border-[color:var(--color-brand)] cursor-pointer",
       ].join(" ")}
     >
-      <span className="font-medium block">{team.name}</span>
-      <span className="text-xs text-neutral-500">Group {team.group}</span>
+      <span className="font-medium">{team.name}</span>
+      {showGroup && <span className="block text-xs text-neutral-500">Group {team.group}</span>}
     </button>
   );
 }
