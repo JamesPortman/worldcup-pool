@@ -33,7 +33,7 @@ export default function PicksClient({
 
   // Non-group rounds: Set of selected team codes per round
   const initialRoundPicks: Record<Exclude<RoundKey, "GROUP">, Set<string>> = {
-    R32: new Set(), R16: new Set(), QF: new Set(), SF: new Set(), FINAL: new Set(),
+    FINAL4: new Set(), SEMIFINAL: new Set(), WINNER: new Set(),
   };
   for (const p of existingPicks) {
     if (p.round !== "GROUP" && p.round in initialRoundPicks) {
@@ -68,7 +68,7 @@ export default function PicksClient({
     for (const [groupId, teamCode] of Object.entries(groupPicks)) {
       if (teamCode) picks.push({ round: "GROUP", teamCode, groupId });
     }
-    for (const round of ["R32","R16","QF","SF","FINAL"] as const) {
+    for (const round of ["FINAL4","SEMIFINAL","WINNER"] as const) {
       for (const code of roundPicks[round]) picks.push({ round, teamCode: code });
     }
     const res = await fetch(`/api/pools/${poolCode}/picks`, {
@@ -87,7 +87,7 @@ export default function PicksClient({
     <div className="mt-6 space-y-10">
       {/* Group winners */}
       <section>
-        <SectionHeader title="Group winners" subtitle={`Pick the team you think wins each group. (${ROUNDS[0].points} pt each)`} />
+        <SectionHeader title="Group winners" subtitle={`Pick the team you think wins each group. (${ROUNDS[0].points} point each)`} />
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {groups.map((g) => (
             <div key={g} className="rounded-lg border border-neutral-300 dark:border-neutral-700 p-3">
@@ -109,13 +109,16 @@ export default function PicksClient({
       </section>
 
       {/* Knockout rounds */}
-      {(["R32", "R16", "QF", "SF", "FINAL"] as const).map((round) => {
+      {(["FINAL4", "SEMIFINAL", "WINNER"] as const).map((round) => {
         const meta = ROUNDS.find((r) => r.key === round)!;
         const limit = PICKS_PER_ROUND[round];
         const picked = roundPicks[round];
-        const label = round === "FINAL"
-          ? "Pick the champion."
-          : `Pick the ${limit} teams you think reach this round. (${meta.points} pts each)`;
+        const label =
+          round === "WINNER"
+            ? "Pick the tournament winner. (16 points)"
+            : round === "SEMIFINAL"
+            ? `Pick the 2 teams that reach the final. (${meta.points} points each)`
+            : `Pick the 4 semi-finalists. (${meta.points} points each)`;
         return (
           <section key={round}>
             <SectionHeader

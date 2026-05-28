@@ -14,7 +14,14 @@ export default function HowItWorks() {
         <p>One person creates the pool and gets a 6-character join code. Share the code with friends — they enter it plus their display name to join. No accounts, no passwords.</p>
 
         <h2 className="text-xl font-semibold mt-6 mb-2">2. Make your picks before kickoff</h2>
-        <p>For each group, pick who you think wins. Then for each knockout round, pick the teams you think advance that far. You can edit your picks any time until the admin locks the pool (kickoff of the first match).</p>
+        <p>You make four sets of picks:</p>
+        <ul>
+          <li><strong>Group Winners</strong> — pick who wins each of the 12 groups</li>
+          <li><strong>Final 4</strong> — pick the 4 teams that reach the semi-finals</li>
+          <li><strong>Semi-Final</strong> — pick the 2 teams that reach the final</li>
+          <li><strong>Winner</strong> — pick the tournament champion</li>
+        </ul>
+        <p>You can edit your picks any time until the admin locks the pool before kickoff.</p>
 
         <h2 className="text-xl font-semibold mt-6 mb-2">3. Points scale with each round</h2>
         <p>Later rounds are worth more — pick a champion right and you score big.</p>

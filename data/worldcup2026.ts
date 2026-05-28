@@ -90,25 +90,18 @@ export const teams: SeedTeam[] = [
 
 // Round identifiers, in tournament order. Used in DB rows and in scoring.
 export const ROUNDS = [
-  { key: "GROUP",  label: "Group Stage",     points: 1  }, // per correct group winner pick
-  { key: "R32",    label: "Round of 32",     points: 2  }, // per correct team in R32
-  { key: "R16",    label: "Round of 16",     points: 4  },
-  { key: "QF",     label: "Quarter-finals",  points: 8  },
-  { key: "SF",     label: "Semi-finals",     points: 16 },
-  { key: "FINAL",  label: "Final",           points: 32 }, // awarded for correct champion
+  { key: "GROUP",     label: "Group Winners", points: 1  }, // correct group winner pick
+  { key: "FINAL4",    label: "Final 4",       points: 4  }, // 4 semi-finalists
+  { key: "SEMIFINAL", label: "Semi-Final",    points: 8  }, // 2 finalists
+  { key: "WINNER",    label: "Winner",        points: 16 }, // champion
 ] as const;
 
 export type RoundKey = (typeof ROUNDS)[number]["key"];
 
 // How many teams the user picks for each round.
-// GROUP: 12 (one winner per group)
-// R32: 32 teams advance (top 2 per group + 8 best 3rd-placers)
-// R16, QF, SF, FINAL follow standard knockout halving.
 export const PICKS_PER_ROUND: Record<RoundKey, number> = {
-  GROUP: 12,
-  R32:   32,
-  R16:   16,
-  QF:     8,
-  SF:     4,
-  FINAL:  1, // the champion
+  GROUP:     12, // one winner per group
+  FINAL4:     4, // four semi-finalists
+  SEMIFINAL:  2, // two finalists
+  WINNER:     1, // the champion
 };
