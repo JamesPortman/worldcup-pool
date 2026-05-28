@@ -1,5 +1,8 @@
 import Navigation from "@/components/Navigation";
+import HeroBanner from "@/components/HeroBanner";
 import { ROUNDS, PICKS_PER_ROUND } from "@/data/worldcup2026";
+
+const DISPLAY_ROUNDS = ROUNDS;
 
 export const metadata = { title: "How it works — World Cup Pool" };
 
@@ -12,7 +15,8 @@ export default async function HowItWorks({
   return (
     <>
       <Navigation poolCode={pool} />
-      <main className="mx-auto max-w-3xl px-4 py-10 prose dark:prose-invert">
+      <HeroBanner />
+      <main className="mx-auto max-w-3xl px-4 py-6 sm:py-10 prose dark:prose-invert">
         <h1 className="text-3xl font-bold mb-6">How it works</h1>
 
         <h2 className="text-xl font-semibold mt-6 mb-2">1. Create or join a pool</h2>
@@ -22,9 +26,9 @@ export default async function HowItWorks({
         <p>You make four sets of picks:</p>
         <ul>
           <li><strong>Group Winners</strong> — pick who wins each of the 12 groups</li>
-          <li><strong>Final 4</strong> — pick the 4 teams that reach the semi-finals</li>
-          <li><strong>Semi-Final</strong> — pick the 2 teams that reach the final</li>
-          <li><strong>Winner</strong> — pick the tournament champion</li>
+          <li><strong>Final 4</strong> — from your group winners, pick the 4 semi-finalists</li>
+          <li><strong>Semi-Final</strong> — from your Final 4, pick the 2 finalists</li>
+          <li><strong>Winner</strong> — from your finalists, pick the tournament champion</li>
         </ul>
         <p>You can edit your picks any time until the admin locks the pool before kickoff.</p>
 
@@ -40,7 +44,7 @@ export default async function HowItWorks({
             </tr>
           </thead>
           <tbody>
-            {ROUNDS.map((r) => (
+            {DISPLAY_ROUNDS.map((r) => (
               <tr key={r.key} className="border-b border-neutral-200 dark:border-neutral-800">
                 <td className="py-2 pr-3">{r.label}</td>
                 <td className="py-2 pr-3">{PICKS_PER_ROUND[r.key]}</td>
@@ -53,7 +57,7 @@ export default async function HowItWorks({
             <tr>
               <td className="pt-2 pr-3 font-semibold" colSpan={3}>Maximum possible</td>
               <td className="pt-2 pr-3 text-right font-semibold tabular-nums">
-                {ROUNDS.reduce((sum, r) => sum + PICKS_PER_ROUND[r.key] * r.points, 0)}
+                {DISPLAY_ROUNDS.reduce((sum, r) => sum + PICKS_PER_ROUND[r.key] * r.points, 0)}
               </td>
             </tr>
           </tfoot>

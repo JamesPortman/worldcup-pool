@@ -1,4 +1,5 @@
 import Navigation from "@/components/Navigation";
+import HeroBanner from "@/components/HeroBanner";
 import { prisma } from "@/lib/db";
 import AdminClient from "./AdminClient";
 
@@ -13,7 +14,8 @@ export default async function AdminPage() {
   return (
     <>
       <Navigation />
-      <main className="mx-auto max-w-4xl px-4 py-10">
+      <HeroBanner />
+      <main className="mx-auto max-w-4xl px-4 py-6 sm:py-10">
         <h1 className="text-3xl font-bold mb-2">Admin</h1>
         <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-6">
           Enter the admin token (the one you set as <code>ADMIN_TOKEN</code> on Vercel)

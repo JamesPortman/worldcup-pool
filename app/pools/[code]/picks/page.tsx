@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import Navigation from "@/components/Navigation";
+import HeroBanner from "@/components/HeroBanner";
 import { prisma } from "@/lib/db";
 import { getPlayerIdCookie } from "@/lib/session";
 import PicksClient from "./PicksClient";
@@ -31,7 +32,8 @@ export default async function PicksPage({
   return (
     <>
       <Navigation poolCode={pool.joinCode} />
-      <main className="mx-auto max-w-4xl px-4 py-10">
+      <HeroBanner />
+      <main className="mx-auto max-w-4xl px-4 py-6 sm:py-10">
         <h1 className="text-3xl font-bold">Your picks</h1>
         <p className="mt-1 text-neutral-600 dark:text-neutral-400">
           Hi {me.displayName}. {pool.locked
