@@ -3,10 +3,15 @@ import { ROUNDS, PICKS_PER_ROUND } from "@/data/worldcup2026";
 
 export const metadata = { title: "How it works — World Cup Pool" };
 
-export default function HowItWorks() {
+export default async function HowItWorks({
+  searchParams,
+}: {
+  searchParams: Promise<{ pool?: string }>;
+}) {
+  const { pool } = await searchParams;
   return (
     <>
-      <Navigation />
+      <Navigation poolCode={pool} />
       <main className="mx-auto max-w-3xl px-4 py-10 prose dark:prose-invert">
         <h1 className="text-3xl font-bold mb-6">How it works</h1>
 
