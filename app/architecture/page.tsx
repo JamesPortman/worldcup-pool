@@ -176,7 +176,10 @@ export default async function ArchitecturePage({
           <h2 className="text-xl font-semibold mb-3">5 · Scoring engine</h2>
           <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
             <code>lib/scoring.ts</code> is pure and deterministic — no I/O — which
-            makes it trivial to unit test. Correctness is round-specific:
+            makes it trivial to unit test. Knockout rounds are{" "}
+            <strong>cumulative</strong>: a team that advances further also
+            satisfies the earlier rounds (a finalist still earns its Final-4
+            points; the champion earns all three). Correctness is round-specific:
           </p>
           <div className="overflow-x-auto rounded-xl border border-neutral-200 dark:border-neutral-800">
             <table className="w-full text-sm">
@@ -192,8 +195,8 @@ export default async function ArchitecturePage({
               <tbody>
                 {[
                   ["GROUP", "team.wonGroup && team.group === pick.groupId", 1, 12, 12],
-                  ["FINAL4", 'team.reachedRound === "FINAL4"', 4, 4, 16],
-                  ["SEMIFINAL", 'team.reachedRound === "SEMIFINAL"', 8, 2, 16],
+                  ["FINAL4", "team reached ≥ Final 4 (cumulative)", 4, 4, 16],
+                  ["SEMIFINAL", "team reached ≥ Semi-Final (cumulative)", 8, 2, 16],
                   ["WINNER", "team.isChampion", 16, 1, 16],
                 ].map(([r, cond, pts, mult, max]) => (
                   <tr key={r as string} className="border-b border-neutral-100 dark:border-neutral-900">
@@ -222,6 +225,7 @@ export default async function ArchitecturePage({
               <li>The cookie alone grants nothing: every API route verifies the player belongs to the pool named in the URL.</li>
               <li>Admin writes are gated by a server-checked <code>ADMIN_TOKEN</code> env var; the page UI never trusts the client.</li>
               <li>Viewing another player&apos;s picks reuses <code>PicksClient</code> in a <code>locked</code> (read-only) mode.</li>
+              <li>Picks close when the admin locks the pool <em>or</em> the global deadline in <code>lib/lock.ts</code> passes (end of Jun 10, 2026) — enforced in both the picks API and UI.</li>
             </ul>
           </div>
           <div>

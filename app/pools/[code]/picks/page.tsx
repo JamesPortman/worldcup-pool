@@ -3,6 +3,7 @@ import Navigation from "@/components/Navigation";
 import HeroBanner from "@/components/HeroBanner";
 import { prisma } from "@/lib/db";
 import { getPlayerIdCookie } from "@/lib/session";
+import { picksLocked } from "@/lib/lock";
 import PicksClient from "./PicksClient";
 
 export const dynamic = "force-dynamic";
@@ -73,13 +74,13 @@ export default async function PicksPage({
         <h1 className="text-3xl font-bold">Your picks</h1>
         <p className="mt-1 text-neutral-600 dark:text-neutral-400">
           Hi {me.displayName}.{" "}
-          {pool.locked
+          {picksLocked(pool)
             ? "Picks are locked — read-only."
-            : "Save anytime. You can edit until the pool is locked."}
+            : "Save anytime. You can edit until entries close on June 10, 2026."}
         </p>
         <PicksClient
           poolCode={pool.joinCode}
-          locked={pool.locked}
+          locked={picksLocked(pool)}
           teams={teams}
           existingPicks={me.picks.map((p) => ({
             round: p.round,

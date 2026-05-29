@@ -23,11 +23,24 @@ export function scorePick(pick: Pick, team: Team): ScoredPick {
   } else if (round === "WINNER") {
     correct = team.isChampion;
   } else {
-    // FINAL4 / SEMIFINAL: correct if admin marked this team as reaching that round.
-    correct = team.reachedRound === round;
+    // FINAL4 / SEMIFINAL are cumulative: a team that advanced *past* this round
+    // still satisfies it. A finalist (reachedRound = SEMIFINAL) still earns its
+    // Final-4 points; the champion earns both. reachedRound marks the team's
+    // furthest stage, and being champion implies it reached the final too.
+    correct = teamReachedRank(team) >= ROUND_ORDER.indexOf(round);
   }
 
   return { pick, correct, points: correct ? POINTS[round] : 0 };
+}
+
+// How far a team advanced, as an index into ROUND_ORDER
+// (GROUP=0, FINAL4=1, SEMIFINAL=2, WINNER=3); -1 if not yet marked.
+function teamReachedRank(team: Team): number {
+  let rank = team.reachedRound
+    ? ROUND_ORDER.indexOf(team.reachedRound as RoundKey)
+    : -1;
+  if (team.isChampion) rank = Math.max(rank, ROUND_ORDER.indexOf("WINNER"));
+  return rank;
 }
 
 export function scoreAllPicks(

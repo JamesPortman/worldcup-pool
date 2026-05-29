@@ -91,6 +91,29 @@ describe("scorePick — FINAL4 / SEMIFINAL rounds", () => {
   });
 });
 
+describe("scorePick — cumulative knockout credit", () => {
+  it("still awards FINAL4 points to a team that advanced to the final", () => {
+    const t = team({ code: "FRA", name: "France", group: "I", reachedRound: "SEMIFINAL" });
+    expect(scorePick(pick({ round: "FINAL4", teamCode: "FRA" }), t).points).toBe(4);
+  });
+
+  it("awards FINAL4 + SEMIFINAL + WINNER points to the champion", () => {
+    const t = team({
+      code: "ARG", name: "Argentina", group: "J",
+      reachedRound: "SEMIFINAL", isChampion: true,
+    });
+    expect(scorePick(pick({ round: "FINAL4", teamCode: "ARG" }), t).points).toBe(4);
+    expect(scorePick(pick({ round: "SEMIFINAL", teamCode: "ARG" }), t).points).toBe(8);
+    expect(scorePick(pick({ round: "WINNER", teamCode: "ARG" }), t).points).toBe(16);
+  });
+
+  it("treats the champion as having reached the knockout rounds even if reachedRound is unset", () => {
+    const t = team({ code: "ARG", name: "Argentina", group: "J", isChampion: true });
+    expect(scorePick(pick({ round: "FINAL4", teamCode: "ARG" }), t).points).toBe(4);
+    expect(scorePick(pick({ round: "SEMIFINAL", teamCode: "ARG" }), t).points).toBe(8);
+  });
+});
+
 describe("scoreAllPicks", () => {
   const teamsByCode: Record<string, Team> = {
     BRA: team({ code: "BRA", name: "Brazil", group: "C", wonGroup: true, reachedRound: "SEMIFINAL" }),
@@ -104,16 +127,16 @@ describe("scoreAllPicks", () => {
       pick({ round: "GROUP", teamCode: "BRA", groupId: "C" }), // +1 correct
       pick({ round: "GROUP", teamCode: "SCO", groupId: "C" }), // +0 wrong
       pick({ round: "FINAL4", teamCode: "ESP" }),              // +4 correct
-      pick({ round: "FINAL4", teamCode: "BRA" }),              // +0 (Brazil reached SEMIFINAL, not FINAL4)
+      pick({ round: "FINAL4", teamCode: "BRA" }),              // +4 (Brazil reached SEMIFINAL → cumulative Final-4 credit)
       pick({ round: "SEMIFINAL", teamCode: "ARG" }),           // +8 correct
       pick({ round: "WINNER", teamCode: "ARG" }),              // +16 correct
     ];
     const { byRound, total, scored } = scoreAllPicks(picks, teamsByCode);
     expect(byRound.GROUP).toBe(1);
-    expect(byRound.FINAL4).toBe(4);
+    expect(byRound.FINAL4).toBe(8);
     expect(byRound.SEMIFINAL).toBe(8);
     expect(byRound.WINNER).toBe(16);
-    expect(total).toBe(29);
+    expect(total).toBe(33);
     expect(scored).toHaveLength(6);
   });
 
