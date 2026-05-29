@@ -52,7 +52,10 @@ export default async function LeaderboardPage({
       winnerCode,
     };
   });
-  rows.sort((a, b) => b.total - a.total);
+  // Rank by score (high → low); break ties alphabetically by player name.
+  // Before the tournament starts everyone is on 0, so this shows the roster
+  // in clean alphabetical order.
+  rows.sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
 
   return (
     <>

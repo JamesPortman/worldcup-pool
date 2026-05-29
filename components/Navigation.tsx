@@ -6,6 +6,9 @@ export default function Navigation({ poolCode }: { poolCode?: string }) {
   const howItWorksHref = poolCode
     ? `/how-it-works?pool=${poolCode}`
     : "/how-it-works";
+  const architectureHref = poolCode
+    ? `/architecture?pool=${poolCode}`
+    : "/architecture";
 
   return (
     <header className="sticky top-0 z-10 border-b border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-950/80 backdrop-blur">
@@ -24,6 +27,9 @@ export default function Navigation({ poolCode }: { poolCode?: string }) {
           )}
           <Link href={howItWorksHref} target="_blank" rel="noopener noreferrer" className="hover:underline whitespace-nowrap">
             How it works
+          </Link>
+          <Link href={architectureHref} target="_blank" rel="noopener noreferrer" className="hover:underline whitespace-nowrap">
+            Architecture
           </Link>
           <ThemeToggle />
         </nav>
