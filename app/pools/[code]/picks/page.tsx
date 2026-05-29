@@ -9,25 +9,61 @@ export const dynamic = "force-dynamic";
 
 export default async function PicksPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ code: string }>;
+  searchParams: Promise<{ player?: string }>;
 }) {
-  const { code } = await params;
+  const [{ code }, { player: playerParam }] = await Promise.all([params, searchParams]);
+
   const pool = await prisma.pool.findUnique({
     where: { joinCode: code.toUpperCase() },
   });
   if (!pool) notFound();
 
-  const playerId = await getPlayerIdCookie();
-  if (!playerId) redirect(`/pools/${pool.joinCode}`);
+  const viewerId = await getPlayerIdCookie();
+  const teams = await prisma.team.findMany({ orderBy: [{ group: "asc" }, { name: "asc" }] });
+
+  // ── Viewing another player's picks (read-only) ────────────────────────────
+  if (playerParam && playerParam !== viewerId) {
+    const target = await prisma.player.findFirst({
+      where: { id: playerParam, poolId: pool.id },
+      include: { picks: true },
+    });
+    if (!target) notFound();
+
+    return (
+      <>
+        <Navigation poolCode={pool.joinCode} />
+        <HeroBanner />
+        <main className="mx-auto max-w-4xl px-4 py-6 sm:py-10">
+          <h1 className="text-3xl font-bold">{target.displayName}&apos;s picks</h1>
+          <p className="mt-1 text-neutral-600 dark:text-neutral-400">
+            Read-only view — you can only edit your own picks.
+          </p>
+          <PicksClient
+            poolCode={pool.joinCode}
+            locked={true}
+            teams={teams}
+            existingPicks={target.picks.map((p) => ({
+              round: p.round,
+              teamCode: p.teamCode,
+              groupId: p.groupId,
+            }))}
+          />
+        </main>
+      </>
+    );
+  }
+
+  // ── Own picks ─────────────────────────────────────────────────────────────
+  if (!viewerId) redirect(`/pools/${pool.joinCode}`);
 
   const me = await prisma.player.findFirst({
-    where: { id: playerId, poolId: pool.id },
+    where: { id: viewerId, poolId: pool.id },
     include: { picks: true },
   });
   if (!me) redirect(`/pools/${pool.joinCode}`);
-
-  const teams = await prisma.team.findMany({ orderBy: [{ group: "asc" }, { name: "asc" }] });
 
   return (
     <>
@@ -36,7 +72,8 @@ export default async function PicksPage({
       <main className="mx-auto max-w-4xl px-4 py-6 sm:py-10">
         <h1 className="text-3xl font-bold">Your picks</h1>
         <p className="mt-1 text-neutral-600 dark:text-neutral-400">
-          Hi {me.displayName}. {pool.locked
+          Hi {me.displayName}.{" "}
+          {pool.locked
             ? "Picks are locked — read-only."
             : "Save anytime. You can edit until the pool is locked."}
         </p>
