@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { setPlayerIdCookie } from "@/lib/session";
+import { rateLimit, clientKey } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +9,9 @@ export async function POST(
   req: NextRequest,
   ctx: { params: Promise<{ code: string }> },
 ) {
+  if (!rateLimit(`pool-join:${clientKey(req)}`, 15, 60_000)) {
+    return NextResponse.json({ error: "Too many requests — please slow down." }, { status: 429 });
+  }
   const { code } = await ctx.params;
   const { displayName } = await req.json();
   const name = displayName?.trim();

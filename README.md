@@ -128,6 +128,17 @@ run from the **Actions** tab to verify, and download the artifact from the run p
 Neon also offers point-in-time restore from its console, but the free-plan window
 is short — treat these dumps as the durable copy.
 
+## Error monitoring & rate limiting
+
+- **Sentry** is scaffolded (`instrumentation.ts`, `instrumentation-client.ts`,
+  `app/global-error.tsx`) but **off by default** — it's a no-op until you set the
+  DSN env vars on Vercel: **`SENTRY_DSN`** (server) and **`NEXT_PUBLIC_SENTRY_DSN`**
+  (client), from a Sentry project. (Source-map upload via `withSentryConfig` can be
+  added later with a `SENTRY_AUTH_TOKEN`.)
+- **Rate limiting** (`lib/rate-limit.ts`) guards pool creation (5/min) and joining
+  (15/min) per client IP. It's an in-memory, best-effort, per-instance limiter — for
+  a hard global limit, back it with Upstash Redis (the call sites stay the same).
+
 ## Updating the team list
 
 If FIFA changes a team (e.g. playoff resolution), edit `data/worldcup2026.ts` and run:

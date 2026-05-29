@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { generateJoinCode, setPlayerIdCookie } from "@/lib/session";
+import { rateLimit, clientKey } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   try {
+    if (!rateLimit(`pool-create:${clientKey(req)}`, 5, 60_000)) {
+      return NextResponse.json({ error: "Too many requests — please slow down." }, { status: 429 });
+    }
     const { poolName, displayName } = await req.json();
     if (!poolName?.trim() || !displayName?.trim()) {
       return NextResponse.json({ error: "Pool name and display name are required." }, { status: 400 });
