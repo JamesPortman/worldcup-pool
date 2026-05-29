@@ -29,6 +29,7 @@ import { POST as joinPool } from "@/app/api/pools/[code]/join/route";
 import { POST as savePicks } from "@/app/api/pools/[code]/picks/route";
 import { POST as adminResults } from "@/app/api/admin/results/route";
 import { POST as adminData } from "@/app/api/admin/data/route";
+import { resetRateLimit } from "@/lib/rate-limit";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function req(body: unknown, headers: Record<string, string> = {}): NextRequest {
@@ -41,6 +42,7 @@ const params = (code: string) => ({ params: Promise.resolve({ code }) });
 
 beforeEach(() => {
   vi.clearAllMocks();
+  resetRateLimit();
   sessionMock.setPlayerIdCookie.mockResolvedValue(undefined);
   sessionMock.generateJoinCode.mockReturnValue("ABC234");
   vi.stubEnv("ADMIN_TOKEN", "test-token");
@@ -67,6 +69,17 @@ describe("POST /api/pools", () => {
     expect(res.status).toBe(200);
     expect(data).toEqual({ joinCode: "ABC234", poolId: "pool_1" });
     expect(sessionMock.setPlayerIdCookie).toHaveBeenCalledWith("player_1");
+  });
+
+  it("rate-limits repeated pool creation from the same client (429)", async () => {
+    prismaMock.pool.findUnique.mockResolvedValue(null);
+    prismaMock.pool.create.mockResolvedValue({ id: "p", joinCode: "ABC234", players: [{ id: "x" }] });
+    const statuses: number[] = [];
+    for (let i = 0; i < 6; i++) {
+      statuses.push((await createPool(req({ poolName: "P", displayName: "J" }))).status);
+    }
+    expect(statuses.slice(0, 5)).toEqual([200, 200, 200, 200, 200]);
+    expect(statuses[5]).toBe(429);
   });
 });
 
