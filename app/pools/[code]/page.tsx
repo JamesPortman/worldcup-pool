@@ -26,6 +26,9 @@ export default async function PoolDashboard({
 
   const playerId = await getPlayerIdCookie();
   const me = pool.players.find((p) => p.id === playerId) ?? null;
+  const players = [...pool.players].sort((a, b) =>
+    a.displayName.localeCompare(b.displayName),
+  );
 
   return (
     <>
@@ -70,7 +73,7 @@ export default async function PoolDashboard({
         <section className="mt-8">
           <h2 className="font-semibold mb-2">Players ({pool.players.length})</h2>
           <ul className="divide-y divide-neutral-200 dark:divide-neutral-800 rounded-md border border-neutral-200 dark:border-neutral-800">
-            {pool.players.map((p) => (
+            {players.map((p) => (
               <li key={p.id} className="flex items-center justify-between px-3 py-2 text-sm">
                 <span>
                   <Link
