@@ -16,3 +16,6 @@ next-env.d.ts
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Database backups (keep these out of git)
+/backups/
