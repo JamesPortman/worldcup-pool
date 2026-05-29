@@ -29,7 +29,7 @@ export default async function ArchitecturePage({
               ["Framework", "Next.js 16 (App Router)"],
               ["Runtime", "React 19 · Node"],
               ["Data", "Prisma 6 · Neon Postgres"],
-              ["Host", "Vercel (CI + CDN)"],
+              ["Host", "Vercel — CI · CDN · Analytics"],
             ].map(([k, v]) => (
               <div
                 key={k}
@@ -236,6 +236,7 @@ export default async function ArchitecturePage({
               <li>Prisma is a global singleton to survive serverless function reuse and avoid connection storms.</li>
               <li>Pages use <code>export const dynamic = &quot;force-dynamic&quot;</code> so picks/leaderboards are never statically cached.</li>
               <li>Build: <code>prisma generate → vitest run → next build</code> — a failing test blocks the deploy.</li>
+              <li>Vercel Web Analytics via <code>&lt;Analytics /&gt;</code> (<code>@vercel/analytics</code>) mounted in the root layout — privacy-friendly page-view metrics.</li>
             </ul>
           </div>
         </section>
@@ -275,6 +276,7 @@ export default async function ArchitecturePage({
           <h2 className="text-xl font-semibold mb-3">9 · Repository map</h2>
           <pre className="text-xs leading-relaxed overflow-x-auto rounded-xl border border-neutral-200 dark:border-neutral-800 p-4 bg-neutral-50 dark:bg-neutral-900">
 {`app/
+  layout.tsx                       root layout · mounts <Analytics/>
   page.tsx · HomeClient.tsx        create / join a pool
   pools/[code]/
     page.tsx                       pool dashboard
@@ -287,7 +289,7 @@ export default async function ArchitecturePage({
     pools/[code]/join/route.ts     join pool
     pools/[code]/picks/route.ts    atomic replace of a player's picks
     admin/results/route.ts         set team results / lock pool
-components/   Navigation · HeroBanner · ThemeToggle
+components/   Navigation (client · active-link) · HeroBanner · ThemeToggle
 lib/          db.ts (Prisma singleton) · session.ts (cookie)
               scoring.ts (pure, cumulative) · lock.ts (pick deadline)
 data/         worldcup2026.ts (48 teams, rounds, points)
@@ -369,7 +371,7 @@ function RuntimeDiagram() {
       y: 8, h: 92, color: "#002868",
       title: "Browser — React 19 client",
       lines: [
-        "Client components: HomeClient · PicksClient · AdminClient · ThemeToggle",
+        "Client components: HomeClient · PicksClient · AdminClient · Navigation · ThemeToggle",
         "State: useState/useMemo bracket model · wcpool_pid cookie (httpOnly)",
       ],
     },
