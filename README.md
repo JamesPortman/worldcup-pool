@@ -94,6 +94,31 @@ DATABASE_URL=$(grep '^DATABASE_URL=' .env.production.local | cut -d= -f2- | tr -
 - **Before kickoff:** each player joins with the code and submits picks. Picks can be edited until you lock the pool from `/admin`.
 - **After each round:** in `/admin`, set each surviving team's "reached round" to the round they reached. Check **won group** for the 12 group winners after the group stage. Check **champion** for the team that wins the final. The leaderboard updates instantly.
 
+## Backups
+
+Pools, players, and picks live only in Neon, so keep your own dumps — especially
+**right after picks lock on June 10**, when the user data is effectively frozen.
+
+**On demand (local):**
+
+```bash
+npx vercel env pull .env.production.local                  # once, to get prod creds
+npm run db:backup                                          # → backups/worldcup-<timestamp>.sql.gz
+npm run db:restore -- backups/worldcup-<timestamp>.sql.gz  # restore (OVERWRITES the target!)
+```
+
+Requires the Postgres client tools: `brew install libpq && brew link --force libpq`.
+
+**Automated (GitHub Actions):** `.github/workflows/backup.yml` runs `pg_dump`
+daily (and on demand) and stores each dump as a **90-day workflow artifact**.
+Activate it by adding a repository secret **`DATABASE_URL_UNPOOLED`** (the direct
+Neon URL from Vercel → Project → Settings → Environment Variables) under
+**GitHub → Settings → Secrets and variables → Actions**. Then trigger a run from
+the **Actions** tab to verify, and download the artifact from the run page.
+
+Neon also offers point-in-time restore from its console, but the free-plan window
+is short — treat these dumps as the durable copy.
+
 ## Updating the team list
 
 If FIFA changes a team (e.g. playoff resolution), edit `data/worldcup2026.ts` and run:

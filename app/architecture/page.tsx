@@ -240,9 +240,39 @@ export default async function ArchitecturePage({
           </div>
         </section>
 
+        {/* ── Backups & durability ──────────────────────────────────────── */}
+        <section className="mb-12">
+          <h2 className="text-xl font-semibold mb-3">8 · Backups &amp; durability</h2>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+            Pools, players, and picks exist only in Neon — the seed{" "}
+            <code>Team</code> rows regenerate from <code>data/worldcup2026.ts</code>,
+            but user data does not. After picks lock on Jun 10 that data is
+            effectively frozen, so a snapshot at lock protects nearly everything.
+          </p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4">
+              <h3 className="font-semibold mb-2">On-demand (local)</h3>
+              <ul className="text-sm space-y-1.5 text-neutral-700 dark:text-neutral-300 list-disc pl-5">
+                <li><code>npm run db:backup</code> → timestamped, gzipped <code>pg_dump</code> in <code>backups/</code> (git-ignored).</li>
+                <li><code>npm run db:restore -- &lt;file&gt;</code> restores (prompts first; dumps use <code>--clean --if-exists</code>).</li>
+                <li><code>scripts/db-url.sh</code> resolves the direct/unpooled URL — best for <code>pg_dump</code>.</li>
+              </ul>
+            </div>
+            <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4">
+              <h3 className="font-semibold mb-2">Automated (GitHub Actions)</h3>
+              <ul className="text-sm space-y-1.5 text-neutral-700 dark:text-neutral-300 list-disc pl-5">
+                <li><code>.github/workflows/backup.yml</code> runs <code>pg_dump</code> daily + on demand.</li>
+                <li>Each dump is uploaded as a <strong>90-day workflow artifact</strong>.</li>
+                <li>Needs a <code>DATABASE_URL_UNPOOLED</code> repo secret to run.</li>
+                <li>Neon point-in-time restore is a short-window safety net; these dumps are the durable copy.</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
         {/* ── Directory map ──────────────────────────────────────────────── */}
         <section className="mb-4">
-          <h2 className="text-xl font-semibold mb-3">8 · Repository map</h2>
+          <h2 className="text-xl font-semibold mb-3">9 · Repository map</h2>
           <pre className="text-xs leading-relaxed overflow-x-auto rounded-xl border border-neutral-200 dark:border-neutral-800 p-4 bg-neutral-50 dark:bg-neutral-900">
 {`app/
   page.tsx · HomeClient.tsx        create / join a pool
@@ -258,9 +288,12 @@ export default async function ArchitecturePage({
     pools/[code]/picks/route.ts    atomic replace of a player's picks
     admin/results/route.ts         set team results / lock pool
 components/   Navigation · HeroBanner · ThemeToggle
-lib/          db.ts (Prisma singleton) · session.ts (cookie) · scoring.ts (pure)
+lib/          db.ts (Prisma singleton) · session.ts (cookie)
+              scoring.ts (pure, cumulative) · lock.ts (pick deadline)
 data/         worldcup2026.ts (48 teams, rounds, points)
 prisma/       schema.prisma · seed.ts
+scripts/      backup-db.sh · restore-db.sh · db-url.sh
+.github/      workflows/backup.yml (scheduled pg_dump)
 __tests__/    vitest unit + component tests
 e2e/          playwright smoke tests`}
           </pre>

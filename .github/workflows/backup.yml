@@ -1,0 +1,41 @@
+name: Database backup
+
+# Logical pg_dump of the Neon database, stored as a downloadable 90-day
+# artifact. Runs daily and on demand. Activate by adding a repo secret
+# DATABASE_URL_UNPOOLED (the direct Neon URL from Vercel → Settings → Env Vars).
+
+on:
+  schedule:
+    - cron: "0 7 * * *" # daily at 07:00 UTC
+  workflow_dispatch: {}
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install PostgreSQL 17 client
+        run: |
+          sudo sh -c 'echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Dump database
+        env:
+          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+        run: |
+          if [ -z "$DATABASE_URL_UNPOOLED" ]; then
+            echo "::error::Missing repo secret DATABASE_URL_UNPOOLED — add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          mkdir -p backups
+          OUT="backups/worldcup-$(date +%Y%m%d-%H%M%S).sql.gz"
+          pg_dump "$DATABASE_URL_UNPOOLED" --no-owner --no-privileges --clean --if-exists | gzip > "$OUT"
+          ls -lh backups
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ github.run_id }}
+          path: backups/*.sql.gz
+          retention-days: 90
