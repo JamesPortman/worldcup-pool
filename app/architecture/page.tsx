@@ -77,6 +77,12 @@ export default async function ArchitecturePage({
             columns. A <code>Pick</code> is the join between a player and a team
             for a given round.
           </p>
+
+          {/* Entity-relationship diagram */}
+          <div className="mb-6 rounded-xl border border-neutral-200 dark:border-neutral-800 p-4 overflow-x-auto text-neutral-800 dark:text-neutral-100">
+            <ErdDiagram />
+          </div>
+
           <div className="grid gap-4 md:grid-cols-2">
             <EntityCard
               title="Pool"
@@ -110,7 +116,7 @@ export default async function ArchitecturePage({
                 ["playerId", "FK → Player (cascade)"],
                 ["teamCode", "FK → Team"],
                 ["round", "GROUP|FINAL4|SEMIFINAL|WINNER"],
-                ["groupId", "string? — only for GROUP"],
+                ["groupId", "string, nullable — only for GROUP"],
                 ["@@unique", "(playerId, round, groupId, teamCode)"],
               ]}
               relations={["N → 1 Player", "N → 1 Team"]}
@@ -122,7 +128,7 @@ export default async function ArchitecturePage({
                 ["code", "string, PK (e.g. BRA)"],
                 ["name", "string"],
                 ["group", '"A".."L"'],
-                ["reachedRound", "string? — set by admin"],
+                ["reachedRound", "string, nullable — set by admin"],
                 ["wonGroup", "boolean — set by admin"],
                 ["isChampion", "boolean — set by admin"],
               ]}
@@ -493,6 +499,56 @@ function PipelineDiagram() {
           key={x} x1={x} y1="66" x2={x + 18} y2="66"
           stroke="currentColor" strokeWidth="1.5" markerEnd="url(#arrow2)"
         />
+      ))}
+    </svg>
+  );
+}
+
+function ErdDiagram() {
+  // Entities laid out left→right; the chain is Pool 1─<N Player 1─<N Pick N>─1 Team.
+  const entities: { x: number; title: string; color: string; rows: string[] }[] = [
+    { x: 16, title: "Pool", color: "#002868", rows: ["id (PK)", "joinCode (unique)", "locked"] },
+    { x: 216, title: "Player", color: "#BF0A30", rows: ["id (PK)", "poolId (FK)", "displayName"] },
+    { x: 416, title: "Pick", color: "#9a6700", rows: ["id (PK)", "playerId (FK)", "teamCode (FK)", "round"] },
+    { x: 616, title: "Team", color: "#006847", rows: ["code (PK)", "reachedRound", "wonGroup"] },
+  ];
+
+  // Each relationship: a line between two boxes with cardinality labels.
+  // "1" sits on the parent side, "N" (many) on the child/Pick side.
+  const rels: { x1: number; x2: number; left: string; right: string }[] = [
+    { x1: 166, x2: 216, left: "1", right: "N" }, // Pool → Player
+    { x1: 366, x2: 416, left: "1", right: "N" }, // Player → Pick
+    { x1: 766, x2: 566, left: "1", right: "N" }, // Team → Pick (right→left)
+  ];
+
+  return (
+    <svg
+      viewBox="0 0 800 200"
+      className="w-full h-auto min-w-[680px]"
+      role="img"
+      aria-label="Entity-relationship diagram: Pool one-to-many Player, Player one-to-many Pick, Team one-to-many Pick"
+    >
+      {rels.map((r) => {
+        const midText = (r.x1 + r.x2) / 2;
+        return (
+          <g key={`${r.x1}-${r.x2}`}>
+            <line x1={r.x1} y1="115" x2={r.x2} y2="115" stroke="currentColor" strokeWidth="1.5" />
+            <text x={r.x1 < r.x2 ? r.x1 + 6 : r.x1 - 12} y="110" fontSize="12" fontWeight="700" fill="currentColor">{r.left}</text>
+            <text x={r.x1 < r.x2 ? r.x2 - 16 : r.x2 + 6} y="110" fontSize="12" fontWeight="700" fill="currentColor">{r.right}</text>
+            <text x={midText} y="132" fontSize="9" textAnchor="middle" fill="currentColor" fillOpacity="0.5">one-to-many</text>
+          </g>
+        );
+      })}
+
+      {entities.map((e) => (
+        <g key={e.title}>
+          <rect x={e.x} y="60" width="150" height="110" rx="10" fill={e.color} fillOpacity="0.10" stroke={e.color} strokeWidth="1.5" />
+          <text x={e.x + 12} y="82" fontSize="14" fontWeight="700" fill={e.color}>{e.title}</text>
+          <line x1={e.x} y1="92" x2={e.x + 150} y2="92" stroke={e.color} strokeOpacity="0.35" strokeWidth="1" />
+          {e.rows.map((row, i) => (
+            <text key={row} x={e.x + 12} y={110 + i * 16} fontSize="11" fill="currentColor" fillOpacity="0.85">{row}</text>
+          ))}
+        </g>
       ))}
     </svg>
   );
