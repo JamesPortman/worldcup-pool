@@ -5,7 +5,7 @@ A bracket pool for the 2026 FIFA World Cup. Anyone with a 6-character pool code 
 - **Stack:** Next.js 16, React 19, Tailwind v4, Prisma + Postgres (Neon)
 - **Hosting:** Vercel (free tier is plenty)
 - **Auth:** name + pool code (cookie-based player session)
-- **Scoring:** Group=1, R32=2, R16=4, QF=8, SF=16, Final/Champion=32
+- **Scoring:** Group winner=1, Final 4=4, Semi-Final=8, Winner=16 (max 60)
 
 ## Local development
 
@@ -17,6 +17,23 @@ npm run db:push      # create tables
 npm run db:seed      # load the 48 teams + 12 groups
 npm run dev          # http://localhost:3000
 ```
+
+## Testing
+
+```bash
+npm run test         # Vitest unit + component tests (jsdom)
+npm run test:watch   # Vitest in watch mode
+npm run test:e2e     # Playwright smoke tests (auto-starts a dev server)
+```
+
+- **Unit/component tests** live in `__tests__/` — pure logic (`lib/scoring.ts`,
+  `data/worldcup2026.ts`, join-code generation) plus React component render
+  tests via `@testing-library/react`.
+- **End-to-end tests** live in `e2e/` and cover the public, no-database pages
+  (home, how-it-works, architecture) and navigation wiring. Run
+  `npx playwright install chromium` once before the first e2e run.
+- `npm run build` runs the unit suite **before** `next build`, so a failing
+  test blocks the production deploy.
 
 ## Deploy to Vercel
 
@@ -50,7 +67,7 @@ You'll need this string on the `/admin` page to enter results and lock pools.
 
 ### 5. Deploy
 
-Click **Deploy**. The build runs `prisma generate && next build`.
+Click **Deploy**. The build runs `prisma generate && vitest run && next build` — unit tests must pass before Next.js compiles.
 
 ### 6. Create the schema in Neon
 
