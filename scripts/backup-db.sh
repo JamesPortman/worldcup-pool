@@ -25,4 +25,12 @@ mkdir -p backups
 OUT="backups/worldcup-$(date +%Y%m%d-%H%M%S).sql.gz"
 echo "📦 Dumping database → ${OUT}"
 pg_dump "$URL" --no-owner --no-privileges --clean --if-exists | gzip > "$OUT"
+
+# Guard against a silently-empty dump (e.g. pg_dump older than the server).
+SIZE=$(gzip -dc "$OUT" | wc -c | tr -d ' ')
+if [[ "$SIZE" -lt 1000 ]]; then
+  echo "❌ Dump is only ${SIZE} bytes — likely failed (is your pg_dump older than the server? brew upgrade libpq). Removing ${OUT}." >&2
+  rm -f "$OUT"
+  exit 1
+fi
 echo "✅ Saved ${OUT} ($(du -h "$OUT" | cut -f1))"

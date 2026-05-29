@@ -19,18 +19,30 @@ jobs:
           curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
           sudo apt-get update -qq
           sudo apt-get install -y postgresql-client-17
+          # Put the v17 binaries first on PATH — the runner ships pg_dump 16,
+          # which refuses to dump a Postgres 17 server.
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
 
       - name: Dump database
         env:
           DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
         run: |
-          if [ -z "$DATABASE_URL_UNPOOLED" ]; then
+          set -euo pipefail
+          if [ -z "${DATABASE_URL_UNPOOLED:-}" ]; then
             echo "::error::Missing repo secret DATABASE_URL_UNPOOLED — add it under Settings → Secrets and variables → Actions."
             exit 1
           fi
+          pg_dump --version
           mkdir -p backups
           OUT="backups/worldcup-$(date +%Y%m%d-%H%M%S).sql.gz"
           pg_dump "$DATABASE_URL_UNPOOLED" --no-owner --no-privileges --clean --if-exists | gzip > "$OUT"
+          # Guard against a silently-empty dump (e.g. a masked pg_dump error).
+          SIZE=$(gzip -dc "$OUT" | wc -c)
+          echo "Uncompressed dump size: ${SIZE} bytes"
+          if [ "$SIZE" -lt 1000 ]; then
+            echo "::error::Dump is only ${SIZE} bytes — treating as failed."
+            exit 1
+          fi
           ls -lh backups
 
       - name: Upload backup artifact
