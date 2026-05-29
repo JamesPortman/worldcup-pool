@@ -99,22 +99,31 @@ DATABASE_URL=$(grep '^DATABASE_URL=' .env.production.local | cut -d= -f2- | tr -
 Pools, players, and picks live only in Neon, so keep your own dumps — especially
 **right after picks lock on June 10**, when the user data is effectively frozen.
 
+> **Where to get the connection string:** Vercel stores the database vars as
+> *sensitive* (write-only), so `vercel env pull` returns them empty and the
+> dashboard won't reveal them. Copy the URL from the **Neon console** instead:
+> Project → **Connection Details** → turn the **"Pooled connection" toggle off**
+> to get the **direct** URL (host has no `-pooler`), e.g.
+> `postgresql://…@ep-xxxx.us-east-1.aws.neon.tech/neondb?sslmode=require`.
+
 **On demand (local):**
 
 ```bash
-npx vercel env pull .env.production.local                  # once, to get prod creds
+export DATABASE_URL_UNPOOLED="postgresql://…neon.tech/neondb?sslmode=require"  # from Neon
 npm run db:backup                                          # → backups/worldcup-<timestamp>.sql.gz
 npm run db:restore -- backups/worldcup-<timestamp>.sql.gz  # restore (OVERWRITES the target!)
 ```
 
 Requires the Postgres client tools: `brew install libpq && brew link --force libpq`.
+(You can also drop `DATABASE_URL_UNPOOLED=…` into `.env.production.local` instead
+of exporting it.)
 
 **Automated (GitHub Actions):** `.github/workflows/backup.yml` runs `pg_dump`
 daily (and on demand) and stores each dump as a **90-day workflow artifact**.
 Activate it by adding a repository secret **`DATABASE_URL_UNPOOLED`** (the direct
-Neon URL from Vercel → Project → Settings → Environment Variables) under
-**GitHub → Settings → Secrets and variables → Actions**. Then trigger a run from
-the **Actions** tab to verify, and download the artifact from the run page.
+Neon URL above) under **GitHub → Settings → Secrets and variables → Actions** —
+or `gh secret set DATABASE_URL_UNPOOLED --body "<paste-neon-url>"`. Then trigger a
+run from the **Actions** tab to verify, and download the artifact from the run page.
 
 Neon also offers point-in-time restore from its console, but the free-plan window
 is short — treat these dumps as the durable copy.
