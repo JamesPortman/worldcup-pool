@@ -17,6 +17,9 @@ export default function ThemeToggle() {
       window.matchMedia &&
       window.matchMedia("(prefers-color-scheme: dark)").matches;
     const initial = stored ?? (prefersDark ? "dark" : "light");
+    // Intentional one-time init from client-only state (localStorage / media
+    // query) after mount — needed for hydration safety, not a cascading-render bug.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setTheme(initial);
     document.documentElement.classList.toggle("dark", initial === "dark");
   }, []);

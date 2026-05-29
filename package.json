@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "prisma generate && NODE_ENV=test vitest run && next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "test": "NODE_ENV=test vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
