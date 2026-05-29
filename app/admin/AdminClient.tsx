@@ -44,16 +44,12 @@ function stagePatch(stage: Stage): Pick<TeamRow, "reachedRound" | "isChampion"> 
   }
 }
 
-export default function AdminClient({
-  teams: initialTeams,
-  pools: initialPools,
-}: {
-  teams: TeamRow[];
-  pools: PoolRow[];
-}) {
+export default function AdminClient() {
   const [token, setToken] = useState("");
-  const [teams, setTeams] = useState(initialTeams);
-  const [pools, setPools] = useState(initialPools);
+  const [unlocked, setUnlocked] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [teams, setTeams] = useState<TeamRow[]>([]);
+  const [pools, setPools] = useState<PoolRow[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
 
   // Teams bucketed by group, alphabetical within each — matches the picks UI.
@@ -67,6 +63,32 @@ export default function AdminClient({
     for (const arr of map.values()) arr.sort((a, b) => a.name.localeCompare(b.name));
     return map;
   }, [teams]);
+
+  // Verify the token by loading admin data; nothing sensitive renders until this
+  // succeeds. The same token is then reused for every write below.
+  async function unlock(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/admin/data", {
+        method: "POST",
+        headers: { "x-admin-token": token },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMsg(data.error ?? "Invalid admin token.");
+        return;
+      }
+      setTeams(data.teams);
+      setPools(data.pools);
+      setUnlocked(true);
+    } catch {
+      setMsg("Could not reach the server.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function updateTeam(code: string, patch: Partial<TeamRow>) {
     setMsg(null);
@@ -95,19 +117,35 @@ export default function AdminClient({
     setMsg(`${locked ? "Locked" : "Unlocked"} pool.`);
   }
 
-  return (
-    <div className="space-y-8">
-      <div>
-        <label className="block text-sm mb-1">Admin token</label>
+  // ── Locked: only the token prompt is shown (no pool/team data) ─────────────
+  if (!unlocked) {
+    return (
+      <form onSubmit={unlock} className="max-w-sm space-y-3">
+        <label className="block text-sm" htmlFor="admin-token">Admin token</label>
         <input
+          id="admin-token"
           type="password"
           value={token}
           onChange={(e) => setToken(e.target.value)}
           placeholder="paste ADMIN_TOKEN"
-          className="w-full max-w-sm rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
+          autoComplete="off"
+          className="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 py-2"
         />
-      </div>
+        <button
+          type="submit"
+          disabled={busy || !token}
+          className="rounded-md bg-[color:var(--color-brand)] text-white px-4 py-2 font-medium disabled:opacity-50"
+        >
+          {busy ? "Unlocking…" : "Unlock"}
+        </button>
+        {msg && <p className="text-sm text-red-600 dark:text-red-400">{msg}</p>}
+      </form>
+    );
+  }
 
+  // ── Unlocked: full admin dashboard ─────────────────────────────────────────
+  return (
+    <div className="space-y-8">
       <section>
         <h2 className="text-xl font-semibold mb-2">Pools</h2>
         <ul className="divide-y divide-neutral-200 dark:divide-neutral-800 rounded-md border border-neutral-200 dark:border-neutral-800">

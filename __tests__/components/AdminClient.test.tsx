@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
 import AdminClient from "@/app/admin/AdminClient";
 
 const teams = [
@@ -7,33 +7,68 @@ const teams = [
   { code: "KOR", name: "South Korea", group: "A", reachedRound: "FINAL4", wonGroup: true, isChampion: false },
   { code: "CAN", name: "Canada", group: "B", reachedRound: "SEMIFINAL", wonGroup: false, isChampion: true },
 ];
+const pools = [{ id: "p1", name: "Test Pool", joinCode: "ABC234", locked: false }];
 
-describe("AdminClient — simplified results entry", () => {
-  it("buckets teams under their group headings", () => {
-    render(<AdminClient teams={teams} pools={[]} />);
-    expect(screen.getByText("Group A")).toBeInTheDocument();
+function mockFetch(ok: boolean, body: unknown) {
+  const fn = vi.fn().mockResolvedValue({ ok, json: async () => body });
+  vi.stubGlobal("fetch", fn);
+  return fn;
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
+describe("AdminClient — token gate", () => {
+  it("shows only the token prompt and no sensitive data before unlocking", () => {
+    render(<AdminClient />);
+    expect(screen.getByLabelText(/admin token/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /unlock/i })).toBeInTheDocument();
+
+    // Nothing sensitive is rendered until the token is verified.
+    expect(screen.queryByText("Group A")).toBeNull();
+    expect(screen.queryByText("Mexico")).toBeNull();
+    expect(screen.queryByText(/ABC234/)).toBeNull();
+  });
+
+  it("verifies the token against /api/admin/data before revealing anything", () => {
+    const fetchMock = mockFetch(true, { teams, pools });
+    render(<AdminClient />);
+    fireEvent.change(screen.getByLabelText(/admin token/i), { target: { value: "secret" } });
+    fireEvent.click(screen.getByRole("button", { name: /unlock/i }));
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/admin/data",
+      expect.objectContaining({
+        method: "POST",
+        headers: { "x-admin-token": "secret" },
+      }),
+    );
+  });
+
+  it("reveals pools and grouped results after a successful unlock", async () => {
+    mockFetch(true, { teams, pools });
+    render(<AdminClient />);
+    fireEvent.change(screen.getByLabelText(/admin token/i), { target: { value: "secret" } });
+    fireEvent.click(screen.getByRole("button", { name: /unlock/i }));
+
+    expect(await screen.findByText("Group A")).toBeInTheDocument();
     expect(screen.getByText("Group B")).toBeInTheDocument();
     expect(screen.getByText("Mexico")).toBeInTheDocument();
-    expect(screen.getByText("South Korea")).toBeInTheDocument();
     expect(screen.getByText("Canada")).toBeInTheDocument();
-  });
-
-  it("offers plain-language stage options instead of raw round keys", () => {
-    render(<AdminClient teams={teams} pools={[]} />);
+    expect(screen.getByText(/ABC234/)).toBeInTheDocument(); // pool join code now visible
     expect(screen.getAllByRole("option", { name: /Final 4 \(last 4\)/ }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("option", { name: /Final \(last 2\)/ }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("option", { name: /Champion/ }).length).toBeGreaterThan(0);
   });
 
-  it("reflects a champion via the single stage selector", () => {
-    render(<AdminClient teams={teams} pools={[]} />);
-    const canadaStage = screen.getByLabelText("Canada stage reached") as HTMLSelectElement;
-    expect(canadaStage.value).toBe("CHAMPION");
-  });
+  it("shows an error and stays locked on an invalid token", async () => {
+    mockFetch(false, { error: "Invalid admin token." });
+    render(<AdminClient />);
+    fireEvent.change(screen.getByLabelText(/admin token/i), { target: { value: "wrong" } });
+    fireEvent.click(screen.getByRole("button", { name: /unlock/i }));
 
-  it("shows the group-winner toggle as pressed for the marked winner", () => {
-    render(<AdminClient teams={teams} pools={[]} />);
-    // South Korea won its group → the toggle reads as confirmed.
-    expect(screen.getByRole("button", { name: /✓ Group winner/ })).toBeInTheDocument();
+    expect(await screen.findByText(/invalid admin token/i)).toBeInTheDocument();
+    expect(screen.queryByText("Group A")).toBeNull();
+    expect(screen.queryByText(/ABC234/)).toBeNull();
   });
 });
