@@ -29,8 +29,11 @@ npm run test:e2e     # Playwright smoke tests (auto-starts a dev server)
 - **Unit/component tests** live in `__tests__/` — pure logic (`lib/scoring.ts`,
   `data/worldcup2026.ts`, join-code generation) plus React component render
   tests via `@testing-library/react`.
-- **End-to-end tests** live in `e2e/` and cover the public, no-database pages
-  (home, how-it-works, architecture) and navigation wiring. Run
+- **End-to-end tests** live in `e2e/` — public-page smoke tests (home,
+  how-it-works, architecture, nav) plus a **full create-pool → picks →
+  leaderboard flow** (`flow.spec.ts`) that exercises the real DB. The flow runs
+  in CI against an ephemeral Postgres service (`.github/workflows/e2e.yml`);
+  locally it needs a throwaway database (don't point it at production). Run
   `npx playwright install chromium` once before the first e2e run.
 - `npm run build` runs the unit suite **before** `next build`, so a failing
   test blocks the production deploy.
