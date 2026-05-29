@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ROUNDS, PICKS_PER_ROUND, groups, type RoundKey } from "@/data/worldcup2026";
+import { PICKS_LOCK_AT } from "@/lib/lock";
 
 interface TeamLite { code: string; name: string; group: string; }
 interface ExistingPick { round: string; teamCode: string; groupId: string | null; }
@@ -12,6 +13,10 @@ const GROUP_META     = ROUNDS.find((r) => r.key === "GROUP")!;
 const FINAL4_META    = ROUNDS.find((r) => r.key === "FINAL4")!;
 const SEMIFINAL_META = ROUNDS.find((r) => r.key === "SEMIFINAL")!;
 const WINNER_META    = ROUNDS.find((r) => r.key === "WINNER")!;
+
+// Total picks a complete bracket needs: 12 + 4 + 2 + 1 = 19.
+const TOTAL_EXPECTED =
+  PICKS_PER_ROUND.GROUP + PICKS_PER_ROUND.FINAL4 + PICKS_PER_ROUND.SEMIFINAL + PICKS_PER_ROUND.WINNER;
 
 export default function PicksClient({
   poolCode,
@@ -73,6 +78,9 @@ export default function PicksClient({
   const final4Unlocked    = groupPickCount === PICKS_PER_ROUND.GROUP;          // 12
   const semifinalUnlocked = final4Picks.size === PICKS_PER_ROUND.FINAL4;       // 4
   const winnerUnlocked    = semifinalPicks.size === PICKS_PER_ROUND.SEMIFINAL; // 2
+
+  const totalPicks =
+    groupPickCount + final4Picks.size + semifinalPicks.size + winnerPick.size;
 
   // ── Filtered option lists ─────────────────────────────────────────────────
   // Final 4 options = the 12 group winners you picked, sorted alphabetically
@@ -231,6 +239,35 @@ export default function PicksClient({
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="mt-4 sm:mt-6 space-y-8 sm:space-y-10 pb-24">
+
+      {/* ── Progress + lock countdown ── */}
+      <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 p-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-[12rem]">
+          <div className="text-sm font-medium">
+            {totalPicks} of {TOTAL_EXPECTED} picks made
+          </div>
+          <div
+            className="h-2 mt-1.5 w-full max-w-xs rounded-full bg-neutral-200 dark:bg-neutral-800 overflow-hidden"
+            role="progressbar"
+            aria-valuenow={totalPicks}
+            aria-valuemin={0}
+            aria-valuemax={TOTAL_EXPECTED}
+          >
+            <div
+              className="h-full bg-[color:var(--color-brand)] transition-[width] duration-300"
+              style={{ width: `${(totalPicks / TOTAL_EXPECTED) * 100}%` }}
+            />
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-xs uppercase tracking-wide text-neutral-500">
+            {locked ? "Entries" : "Entries close in"}
+          </div>
+          <div className="font-mono font-semibold tabular-nums text-sm">
+            {locked ? "Closed" : <Countdown />}
+          </div>
+        </div>
+      </div>
 
       {/* ── Group Winners ── */}
       <section>
@@ -461,5 +498,35 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle: string })
       <h2 className="text-lg sm:text-xl font-semibold">{title}</h2>
       <p className="text-sm text-neutral-600 dark:text-neutral-400">{subtitle}</p>
     </div>
+  );
+}
+
+// ── Live countdown to the pick deadline (PICKS_LOCK_AT) ─────────────────────────
+// Renders nothing until mounted to avoid a server/client hydration mismatch.
+function Countdown() {
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (now === null) return <span aria-hidden>…</span>;
+
+  const ms = PICKS_LOCK_AT.getTime() - now;
+  if (ms <= 0) return <span>Closed</span>;
+
+  const s = Math.floor(ms / 1000);
+  const days = Math.floor(s / 86400);
+  const hours = Math.floor((s % 86400) / 3600);
+  const mins = Math.floor((s % 3600) / 60);
+  const secs = s % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+
+  return (
+    <span>
+      {days > 0 && `${days}d `}
+      {pad(hours)}:{pad(mins)}:{pad(secs)}
+    </span>
   );
 }

@@ -21,3 +21,11 @@ html.dark body {
 
 /* Generic interactive defaults */
 button, a { transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease; }
+
+/* Accessibility: a visible focus ring for keyboard / assistive-tech users.
+   :focus-visible doesn't trigger on mouse clicks, so it stays out of the way. */
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
