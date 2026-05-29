@@ -506,6 +506,8 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle: string })
 function Countdown() {
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
+    // Intentional client-only init after mount (avoids a hydration mismatch).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setNow(Date.now());
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
