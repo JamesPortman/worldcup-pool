@@ -72,7 +72,15 @@ export default async function PoolDashboard({
           <ul className="divide-y divide-neutral-200 dark:divide-neutral-800 rounded-md border border-neutral-200 dark:border-neutral-800">
             {pool.players.map((p) => (
               <li key={p.id} className="flex items-center justify-between px-3 py-2 text-sm">
-                <span>{p.displayName}{p.id === playerId ? " (you)" : ""}</span>
+                <span>
+                  <Link
+                    href={`/pools/${pool.joinCode}/picks?player=${p.id}`}
+                    className="font-medium hover:underline text-[color:var(--color-brand)]"
+                  >
+                    {p.displayName}
+                  </Link>
+                  {p.id === playerId && <span className="text-neutral-500"> (you)</span>}
+                </span>
                 <span className="text-neutral-500">{p._count.picks} picks</span>
               </li>
             ))}
