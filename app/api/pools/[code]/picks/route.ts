@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getPlayerIdCookie } from "@/lib/session";
+import { picksLocked } from "@/lib/lock";
 import { ROUNDS, PICKS_PER_ROUND, type RoundKey } from "@/data/worldcup2026";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +31,7 @@ export async function POST(
   if (pool.players.length === 0) {
     return NextResponse.json({ error: "You're not a member of this pool." }, { status: 403 });
   }
-  if (pool.locked) return NextResponse.json({ error: "Pool locked — picks closed." }, { status: 400 });
+  if (picksLocked(pool)) return NextResponse.json({ error: "Picks are closed." }, { status: 400 });
 
   const body = (await req.json()) as { picks?: IncomingPick[] };
   const picks = body.picks ?? [];
