@@ -8,7 +8,7 @@ import type { NextRequest } from "next/server";
 const { prismaMock, sessionMock } = vi.hoisted(() => ({
   prismaMock: {
     pool: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), findMany: vi.fn() },
-    player: { findUnique: vi.fn(), create: vi.fn(), findFirst: vi.fn() },
+    player: { findUnique: vi.fn(), create: vi.fn(), findFirst: vi.fn(), delete: vi.fn() },
     team: { update: vi.fn(), findMany: vi.fn() },
     pick: { deleteMany: vi.fn(), createMany: vi.fn() },
     $transaction: vi.fn(),
@@ -29,7 +29,9 @@ import { POST as joinPool } from "@/app/api/pools/[code]/join/route";
 import { POST as savePicks } from "@/app/api/pools/[code]/picks/route";
 import { POST as adminResults } from "@/app/api/admin/results/route";
 import { POST as adminData } from "@/app/api/admin/data/route";
+import { DELETE as deletePlayer } from "@/app/api/admin/players/[id]/route";
 import { resetRateLimit } from "@/lib/rate-limit";
+import { Prisma } from "@prisma/client";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function req(body: unknown, headers: Record<string, string> = {}): NextRequest {
@@ -227,12 +229,46 @@ describe("POST /api/admin/data", () => {
   it("returns teams and pools with a valid token", async () => {
     prismaMock.team.findMany.mockResolvedValue([{ code: "BRA" }]);
     prismaMock.pool.findMany.mockResolvedValue([
-      { id: "pool_1", name: "Crew", joinCode: "ABC234", locked: false },
+      {
+        id: "pool_1", name: "Crew", joinCode: "ABC234", locked: false,
+        players: [{ id: "pl1", displayName: "Alice", _count: { picks: 19 } }],
+      },
     ]);
     const res = await adminData(req({}, { "x-admin-token": "test-token" }));
     const data = await res.json();
     expect(res.status).toBe(200);
     expect(data.teams).toHaveLength(1);
-    expect(data.pools[0]).toEqual({ id: "pool_1", name: "Crew", joinCode: "ABC234", locked: false });
+    expect(data.pools[0]).toEqual({
+      id: "pool_1", name: "Crew", joinCode: "ABC234", locked: false,
+      players: [{ id: "pl1", displayName: "Alice", pickCount: 19 }],
+    });
+  });
+});
+
+// ── DELETE /api/admin/players/[id] ────────────────────────────────────────────────
+describe("DELETE /api/admin/players/[id]", () => {
+  const idParams = (id: string) => ({ params: Promise.resolve({ id }) });
+
+  it("401s without the admin token", async () => {
+    const res = await deletePlayer(req({}, {}), idParams("pl1"));
+    expect(res.status).toBe(401);
+    expect(prismaMock.player.delete).not.toHaveBeenCalled();
+  });
+
+  it("deletes the player with a valid token", async () => {
+    prismaMock.player.delete.mockResolvedValue({ id: "pl1" });
+    const res = await deletePlayer(req({}, { "x-admin-token": "test-token" }), idParams("pl1"));
+    const data = await res.json();
+    expect(res.status).toBe(200);
+    expect(data).toEqual({ ok: true });
+    expect(prismaMock.player.delete).toHaveBeenCalledWith({ where: { id: "pl1" } });
+  });
+
+  it("404s when the player does not exist", async () => {
+    prismaMock.player.delete.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError("not found", { code: "P2025", clientVersion: "6.0.0" }),
+    );
+    const res = await deletePlayer(req({}, { "x-admin-token": "test-token" }), idParams("nope"));
+    expect(res.status).toBe(404);
   });
 });

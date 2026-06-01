@@ -17,7 +17,15 @@ export async function POST(req: NextRequest) {
   const teams = await prisma.team.findMany({
     orderBy: [{ group: "asc" }, { name: "asc" }],
   });
-  const pools = await prisma.pool.findMany({ orderBy: { createdAt: "desc" } });
+  const pools = await prisma.pool.findMany({
+    orderBy: { createdAt: "desc" },
+    include: {
+      players: {
+        orderBy: { displayName: "asc" },
+        select: { id: true, displayName: true, _count: { select: { picks: true } } },
+      },
+    },
+  });
 
   return NextResponse.json({
     teams,
@@ -26,6 +34,11 @@ export async function POST(req: NextRequest) {
       name: p.name,
       joinCode: p.joinCode,
       locked: p.locked,
+      players: p.players.map((pl) => ({
+        id: pl.id,
+        displayName: pl.displayName,
+        pickCount: pl._count.picks,
+      })),
     })),
   });
 }
