@@ -11,7 +11,8 @@ interface TeamRow {
   wonGroup: boolean;
   isChampion: boolean;
 }
-interface PoolRow { id: string; name: string; joinCode: string; locked: boolean; }
+interface PlayerRow { id: string; displayName: string; pickCount: number; }
+interface PoolRow { id: string; name: string; joinCode: string; locked: boolean; players: PlayerRow[]; }
 
 // The four stages the admin can mark, in plain language. Each maps to the
 // underlying scoring flags so the admin never has to think about reachedRound /
@@ -51,6 +52,7 @@ export default function AdminClient() {
   const [teams, setTeams] = useState<TeamRow[]>([]);
   const [pools, setPools] = useState<PoolRow[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   // Teams bucketed by group, alphabetical within each — matches the picks UI.
   const teamsByGroup = useMemo(() => {
@@ -117,6 +119,24 @@ export default function AdminClient() {
     setMsg(`${locked ? "Locked" : "Unlocked"} pool.`);
   }
 
+  // Permanently removes a player and their picks (Pick cascades in the DB).
+  async function deletePlayer(poolId: string, playerId: string, name: string) {
+    setMsg(null);
+    const res = await fetch(`/api/admin/players/${playerId}`, {
+      method: "DELETE",
+      headers: { "x-admin-token": token },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { setMsg(data.error ?? "Delete failed"); return; }
+    setPools((prev) =>
+      prev.map((p) =>
+        p.id === poolId ? { ...p, players: p.players.filter((pl) => pl.id !== playerId) } : p,
+      ),
+    );
+    setConfirmDelete(null);
+    setMsg(`Removed ${name}.`);
+  }
+
   // ── Locked: only the token prompt is shown (no pool/team data) ─────────────
   if (!unlocked) {
     return (
@@ -150,17 +170,57 @@ export default function AdminClient() {
         <h2 className="text-xl font-semibold mb-2">Pools</h2>
         <ul className="divide-y divide-neutral-200 dark:divide-neutral-800 rounded-md border border-neutral-200 dark:border-neutral-800">
           {pools.map((p) => (
-            <li key={p.id} className="px-3 py-2 flex items-center justify-between text-sm">
-              <span>
-                <span className="font-medium">{p.name}</span>{" "}
-                <span className="font-mono text-neutral-500">[{p.joinCode}]</span>
-              </span>
-              <button
-                onClick={() => togglePoolLock(p.id, !p.locked)}
-                className="rounded-md border border-neutral-300 dark:border-neutral-700 px-3 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-              >
-                {p.locked ? "Unlock picks" : "Lock picks"}
-              </button>
+            <li key={p.id} className="px-3 py-2 text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <span>
+                  <span className="font-medium">{p.name}</span>{" "}
+                  <span className="font-mono text-neutral-500">[{p.joinCode}]</span>
+                </span>
+                <button
+                  onClick={() => togglePoolLock(p.id, !p.locked)}
+                  className="rounded-md border border-neutral-300 dark:border-neutral-700 px-3 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                >
+                  {p.locked ? "Unlock picks" : "Lock picks"}
+                </button>
+              </div>
+
+              {p.players.length > 0 ? (
+                <ul className="mt-2 ml-1 space-y-1">
+                  {p.players.map((pl) => (
+                    <li key={pl.id} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="text-neutral-600 dark:text-neutral-400">
+                        {pl.displayName}{" "}
+                        <span className="text-neutral-400">· {pl.pickCount} picks</span>
+                      </span>
+                      {confirmDelete === pl.id ? (
+                        <span className="flex items-center gap-1">
+                          <button
+                            onClick={() => deletePlayer(p.id, pl.id, pl.displayName)}
+                            className="rounded border border-red-600 bg-red-600 text-white px-2 py-0.5"
+                          >
+                            Confirm remove
+                          </button>
+                          <button
+                            onClick={() => setConfirmDelete(null)}
+                            className="rounded border border-neutral-300 dark:border-neutral-700 px-2 py-0.5"
+                          >
+                            Cancel
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmDelete(pl.id)}
+                          className="rounded border border-neutral-300 dark:border-neutral-700 px-2 py-0.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-1 ml-1 text-xs text-neutral-400">No players yet.</p>
+              )}
             </li>
           ))}
           {pools.length === 0 && <li className="px-3 py-2 text-neutral-500 text-sm">No pools yet.</li>}
