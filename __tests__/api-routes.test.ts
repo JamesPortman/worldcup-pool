@@ -23,6 +23,12 @@ const { prismaMock, sessionMock } = vi.hoisted(() => ({
 
 vi.mock("@/lib/db", () => ({ prisma: prismaMock }));
 vi.mock("@/lib/session", () => sessionMock);
+// picksLocked() also enforces the calendar deadline; mock it so these route
+// tests reflect the mock pool's `locked` flag regardless of the real date.
+vi.mock("@/lib/lock", () => ({
+  picksLocked: (pool: { locked: boolean }) => pool.locked,
+  PICKS_LOCK_AT: new Date("2026-06-11T03:59:00Z"),
+}));
 
 import { POST as createPool } from "@/app/api/pools/route";
 import { POST as joinPool } from "@/app/api/pools/[code]/join/route";

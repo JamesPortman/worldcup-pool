@@ -394,7 +394,9 @@ export default function PicksClient({
         </section>
       )}
 
-      {/* ── Fixed footer ── */}
+      {/* ── Fixed footer — editing controls; hidden entirely in read-only /
+           locked views so there's nothing to change ── */}
+      {!locked && (
       <div className="fixed bottom-0 left-0 right-0 z-20 px-4 py-3 bg-white/95 dark:bg-neutral-950/95 border-t border-neutral-200 dark:border-neutral-800">
         <div className="mx-auto max-w-4xl flex flex-wrap items-center justify-between gap-2">
 
@@ -455,6 +457,7 @@ export default function PicksClient({
 
         </div>
       </div>
+      )}
 
     </div>
   );
