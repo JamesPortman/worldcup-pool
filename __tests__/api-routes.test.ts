@@ -23,6 +23,12 @@ const { prismaMock, sessionMock } = vi.hoisted(() => ({
 
 vi.mock("@/lib/db", () => ({ prisma: prismaMock }));
 vi.mock("@/lib/session", () => sessionMock);
+// picksLocked() also enforces the calendar deadline; mock it so these route
+// tests reflect the mock pool's `locked` flag regardless of the real date.
+vi.mock("@/lib/lock", () => ({
+  picksLocked: (pool: { locked: boolean }) => pool.locked,
+  PICKS_LOCK_AT: new Date("2026-06-11T03:59:00Z"),
+}));
 
 import { POST as createPool } from "@/app/api/pools/route";
 import { POST as joinPool } from "@/app/api/pools/[code]/join/route";
@@ -98,10 +104,22 @@ describe("POST /api/pools/[code]/join", () => {
     expect(res.status).toBe(404);
   });
 
-  it("rejects joining a locked pool", async () => {
+  it("rejects a NEW player joining a locked pool", async () => {
     prismaMock.pool.findUnique.mockResolvedValue({ id: "pool_1", locked: true });
+    prismaMock.player.findUnique.mockResolvedValue(null); // no one with this name yet
     const res = await joinPool(req({ displayName: "Sam" }), params("ABC234"));
     expect(res.status).toBe(400);
+    expect(prismaMock.player.create).not.toHaveBeenCalled();
+  });
+
+  it("lets an existing member sign back in even when the pool is locked", async () => {
+    prismaMock.pool.findUnique.mockResolvedValue({ id: "pool_1", locked: true });
+    prismaMock.player.findUnique.mockResolvedValue({ id: "player_9" });
+    const res = await joinPool(req({ displayName: "James" }), params("ABC234"));
+    const data = await res.json();
+    expect(res.status).toBe(200);
+    expect(data.playerId).toBe("player_9");
+    expect(prismaMock.player.create).not.toHaveBeenCalled();
   });
 
   it("reuses an existing player with the same name (returning visitor)", async () => {
