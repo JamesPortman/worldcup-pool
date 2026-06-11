@@ -104,10 +104,22 @@ describe("POST /api/pools/[code]/join", () => {
     expect(res.status).toBe(404);
   });
 
-  it("rejects joining a locked pool", async () => {
+  it("rejects a NEW player joining a locked pool", async () => {
     prismaMock.pool.findUnique.mockResolvedValue({ id: "pool_1", locked: true });
+    prismaMock.player.findUnique.mockResolvedValue(null); // no one with this name yet
     const res = await joinPool(req({ displayName: "Sam" }), params("ABC234"));
     expect(res.status).toBe(400);
+    expect(prismaMock.player.create).not.toHaveBeenCalled();
+  });
+
+  it("lets an existing member sign back in even when the pool is locked", async () => {
+    prismaMock.pool.findUnique.mockResolvedValue({ id: "pool_1", locked: true });
+    prismaMock.player.findUnique.mockResolvedValue({ id: "player_9" });
+    const res = await joinPool(req({ displayName: "James" }), params("ABC234"));
+    const data = await res.json();
+    expect(res.status).toBe(200);
+    expect(data.playerId).toBe("player_9");
+    expect(prismaMock.player.create).not.toHaveBeenCalled();
   });
 
   it("reuses an existing player with the same name (returning visitor)", async () => {
