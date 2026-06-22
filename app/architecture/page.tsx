@@ -42,6 +42,36 @@ export default async function ArchitecturePage({
           </dl>
         </header>
 
+        {/* ── Operations ─────────────────────────────────────────────────── */}
+        <section className="mb-12">
+          <h2 className="text-xl font-semibold mb-3">Operations</h2>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4">
+              <div className="font-semibold">Visitor analytics</div>
+              <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
+                Vercel Web Analytics records page views via{" "}
+                <code>&lt;Analytics /&gt;</code> in the root layout — privacy-friendly,
+                no cookies.
+              </p>
+            </div>
+            <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4">
+              <div className="font-semibold">Daily automatic backup</div>
+              <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
+                A scheduled GitHub Action runs <code>pg_dump</code> every day, storing
+                each snapshot as a 90-day downloadable artifact.
+              </p>
+            </div>
+            <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4">
+              <div className="font-semibold">End-to-end tests guard every deploy</div>
+              <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
+                Playwright runs the full create → pick → leaderboard flow against a real
+                Postgres in CI on every push, and the unit suite gates the production
+                build — a failing test blocks the deploy.
+              </p>
+            </div>
+          </div>
+        </section>
+
         {/* ── Runtime request path ───────────────────────────────────────── */}
         <section className="mb-12">
           <h2 className="text-xl font-semibold mb-1">1 · Runtime request path</h2>
