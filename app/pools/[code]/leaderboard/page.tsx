@@ -75,6 +75,7 @@ export default async function LeaderboardPage({
           <table className="w-full text-sm min-w-[360px]">
             <thead>
               <tr className="text-left border-b border-neutral-300 dark:border-neutral-700">
+                <th className="py-2 px-2 text-right font-semibold">Total</th>
                 <th className="py-2 pr-3">#</th>
                 <th className="py-2 pr-3">Player</th>
                 {ROUNDS.map((r) => (
@@ -82,7 +83,6 @@ export default async function LeaderboardPage({
                     {r.key === "GROUP" ? "Group Wins" : r.label}
                   </th>
                 ))}
-                <th className="py-2 px-2 text-right font-semibold">Total</th>
               </tr>
             </thead>
             <tbody>
@@ -100,6 +100,9 @@ export default async function LeaderboardPage({
                     row.id === viewerId ? "bg-yellow-100 dark:bg-yellow-900/30" : ""
                   }`}
                 >
+                  <td className="py-2 px-2 text-right font-semibold tabular-nums align-top">
+                    {row.total}
+                  </td>
                   <td className="py-2 pr-3 text-neutral-500 align-top">{idx + 1}</td>
 
                   {/* Player name + Final 4 picks summary */}
@@ -136,9 +139,6 @@ export default async function LeaderboardPage({
                       {row.byRound[r.key as RoundKey]}
                     </td>
                   ))}
-                  <td className="py-2 px-2 text-right font-semibold tabular-nums align-top">
-                    {row.total}
-                  </td>
                 </tr>
               ))}
             </tbody>
