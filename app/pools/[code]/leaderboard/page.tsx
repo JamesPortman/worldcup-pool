@@ -75,9 +75,9 @@ export default async function LeaderboardPage({
           <table className="w-full text-sm min-w-[360px]">
             <thead>
               <tr className="text-left border-b border-neutral-300 dark:border-neutral-700">
-                <th className="py-2 px-2 text-right font-semibold">Total</th>
                 <th className="py-2 pr-3">#</th>
                 <th className="py-2 pr-3">Player</th>
+                <th className="py-2 px-2 text-right font-semibold">Total</th>
                 {ROUNDS.map((r) => (
                   <th key={r.key} className="py-2 px-2 text-right whitespace-nowrap">
                     {r.key === "GROUP" ? "Group Wins" : r.label}
@@ -100,9 +100,6 @@ export default async function LeaderboardPage({
                     row.id === viewerId ? "bg-yellow-100 dark:bg-yellow-900/30" : ""
                   }`}
                 >
-                  <td className="py-2 px-2 text-right font-semibold tabular-nums align-top">
-                    {row.total}
-                  </td>
                   <td className="py-2 pr-3 text-neutral-500 align-top">{idx + 1}</td>
 
                   {/* Player name + Final 4 picks summary */}
@@ -132,6 +129,10 @@ export default async function LeaderboardPage({
                         ]
                       </div>
                     )}
+                  </td>
+
+                  <td className="py-2 px-2 text-right font-semibold tabular-nums align-top">
+                    {row.total}
                   </td>
 
                   {ROUNDS.map((r) => (
