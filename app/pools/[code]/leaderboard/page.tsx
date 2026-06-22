@@ -3,7 +3,6 @@ import Link from "next/link";
 import Navigation from "@/components/Navigation";
 import HeroBanner from "@/components/HeroBanner";
 import { prisma } from "@/lib/db";
-import { getPlayerIdCookie } from "@/lib/session";
 import { scoreAllPicks } from "@/lib/scoring";
 import { ROUNDS, type RoundKey } from "@/data/worldcup2026";
 
@@ -22,9 +21,6 @@ export default async function LeaderboardPage({
     },
   });
   if (!pool) notFound();
-
-  // The player viewing this page (if any) — used to highlight their own row.
-  const viewerId = await getPlayerIdCookie();
 
   const teams = await prisma.team.findMany();
   const teamsByCode = Object.fromEntries(teams.map((t) => [t.code, t]));
@@ -97,7 +93,7 @@ export default async function LeaderboardPage({
                 <tr
                   key={row.id}
                   className={`border-b border-neutral-200 dark:border-neutral-800 ${
-                    row.id === viewerId ? "bg-yellow-100 dark:bg-yellow-900/30" : ""
+                    idx < 3 ? "bg-yellow-100 dark:bg-yellow-900/30" : ""
                   }`}
                 >
                   <td className="py-2 pr-3 text-neutral-500 align-top">{idx + 1}</td>

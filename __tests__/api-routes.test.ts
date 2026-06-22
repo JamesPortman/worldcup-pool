@@ -142,6 +142,14 @@ describe("POST /api/pools/[code]/join", () => {
     expect(res.status).toBe(200);
     expect(data.playerId).toBe("player_new");
   });
+
+  it("returns a clean 500 (not a raw crash) if the DB throws", async () => {
+    prismaMock.pool.findUnique.mockRejectedValue(new Error("db down"));
+    const res = await joinPool(req({ displayName: "Sam" }), params("ABC234"));
+    const data = await res.json();
+    expect(res.status).toBe(500);
+    expect(data.error).toBeTruthy();
+  });
 });
 
 // ── POST /api/pools/[code]/picks ────────────────────────────────────────────────
