@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import type { NextRequest } from "next/server";
 
 // ── Mocks ───────────────────────────────────────────────────────────────────
@@ -55,6 +55,10 @@ beforeEach(() => {
   sessionMock.setPlayerIdCookie.mockResolvedValue(undefined);
   sessionMock.generateJoinCode.mockReturnValue("ABC234");
   vi.stubEnv("ADMIN_TOKEN", "test-token");
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals(); // clear any stubbed global fetch between tests
 });
 
 // ── POST /api/pools (create) ──────────────────────────────────────────────────
@@ -311,5 +315,66 @@ describe("POST /api/admin/fetch-results", () => {
     vi.stubEnv("FOOTBALL_API_KEY", "");
     const res = await fetchResults(req({}, { "x-admin-token": "test-token" }));
     expect(res.status).toBe(400);
+  });
+
+  // Stubs football-data.org: /standings and /matches both resolve from this mock.
+  function mockFootballApi(opts: {
+    standings?: unknown[];
+    matches?: unknown[];
+    standingsOk?: boolean;
+    matchesOk?: boolean;
+  }) {
+    const { standings = [], matches = [], standingsOk = true, matchesOk = true } = opts;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) => {
+        const isStandings = String(url).includes("/standings");
+        const ok = isStandings ? standingsOk : matchesOk;
+        const body = isStandings ? { standings } : { matches };
+        return Promise.resolve({ ok, status: ok ? 200 : 503, json: async () => body });
+      }),
+    );
+  }
+
+  it("returns proposed results from a successful API fetch (normalize → derive)", async () => {
+    vi.stubEnv("FOOTBALL_API_KEY", "key");
+    mockFootballApi({
+      standings: [
+        { table: [
+          { position: 1, playedGames: 3, team: { name: "Brazil", tla: "BRA" } },
+          { position: 2, playedGames: 3, team: { name: "Morocco", tla: "MAR" } },
+          { position: 3, playedGames: 3, team: { name: "Haiti", tla: "HAI" } },
+          { position: 4, playedGames: 3, team: { name: "Scotland", tla: "SCO" } },
+        ] },
+      ],
+      matches: [
+        { stage: "FINAL", status: "FINISHED",
+          homeTeam: { name: "Argentina", tla: "ARG" }, awayTeam: { name: "France", tla: "FRA" },
+          score: { winner: "HOME_TEAM" } },
+      ],
+    });
+    const res = await fetchResults(req({}, { "x-admin-token": "test-token" }));
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    const byCode = Object.fromEntries(data.proposed.map((p: { code: string }) => [p.code, p]));
+    expect(byCode.BRA.wonGroup).toBe(true);            // finished group → winner staged
+    expect(byCode.ARG.isChampion).toBe(true);          // won the final
+    expect(byCode.FRA.reachedRound).toBe("SEMIFINAL"); // beaten finalist
+    expect(data.unmapped).toEqual([]);
+  });
+
+  it("502s when the results API returns an error status", async () => {
+    vi.stubEnv("FOOTBALL_API_KEY", "key");
+    mockFootballApi({ standingsOk: false });
+    const res = await fetchResults(req({}, { "x-admin-token": "test-token" }));
+    expect(res.status).toBe(502);
+  });
+
+  it("502s when the results API is unreachable", async () => {
+    vi.stubEnv("FOOTBALL_API_KEY", "key");
+    vi.spyOn(console, "error").mockImplementation(() => {}); // swallow the logged error
+    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("network down"))));
+    const res = await fetchResults(req({}, { "x-admin-token": "test-token" }));
+    expect(res.status).toBe(502);
   });
 });

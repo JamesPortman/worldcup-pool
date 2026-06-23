@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import AdminClient from "@/app/admin/AdminClient";
 
 const teams = [
@@ -113,5 +113,68 @@ describe("AdminClient — token gate", () => {
       "/api/admin/players/pl1",
       expect.objectContaining({ method: "DELETE", headers: { "x-admin-token": "secret" } }),
     );
+  });
+});
+
+describe("AdminClient — fetch & apply results", () => {
+  // Unlock the dashboard, then return the per-URL fetch mock for assertions.
+  function unlockWith(handler: (url: string) => { ok: boolean; body: unknown }) {
+    const fetchMock = mockFetchByUrl(handler);
+    render(<AdminClient />);
+    fireEvent.change(screen.getByLabelText(/admin token/i), { target: { value: "secret" } });
+    fireEvent.click(screen.getByRole("button", { name: /unlock/i }));
+    return fetchMock;
+  }
+
+  it("fetches results, shows the proposed diff, and only writes on Apply", async () => {
+    // MEX is stored with no result; the API proposes it as a group winner — a real change.
+    const proposed = [{ code: "MEX", name: "Mexico", wonGroup: true, reachedRound: null, isChampion: false }];
+    const fetchMock = unlockWith((url) => {
+      if (url === "/api/admin/data") return { ok: true, body: { teams, pools } };
+      if (url === "/api/admin/fetch-results") return { ok: true, body: { proposed, unmapped: [] } };
+      if (url === "/api/admin/results") return { ok: true, body: { ok: true } };
+      return { ok: false, body: {} };
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: /fetch latest results/i }));
+
+    // The review panel stages the single change for confirmation.
+    const heading = await screen.findByText(/1 change to apply/i);
+    const panel = heading.closest("div")!;
+    expect(within(panel).getByText("Mexico")).toBeInTheDocument();
+    expect(within(panel).getByText(/group winner/i)).toBeInTheDocument();
+
+    // Human-in-the-loop: nothing is written until the admin confirms.
+    expect(fetchMock).not.toHaveBeenCalledWith("/api/admin/results", expect.anything());
+
+    fireEvent.click(screen.getByRole("button", { name: /apply 1 change/i }));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/admin/results",
+        expect.objectContaining({
+          method: "POST",
+          headers: expect.objectContaining({ "x-admin-token": "secret" }),
+        }),
+      ),
+    );
+    expect(await screen.findByText(/applied 1 result update/i)).toBeInTheDocument();
+  });
+
+  it("reports nothing-to-update when the API matches, and warns about unmapped teams", async () => {
+    // KOR is already stored as wonGroup + FINAL4, so this proposal is a no-op diff.
+    const proposed = [{ code: "KOR", name: "South Korea", wonGroup: true, reachedRound: "FINAL4", isChampion: false }];
+    const fetchMock = unlockWith((url) => {
+      if (url === "/api/admin/data") return { ok: true, body: { teams, pools } };
+      if (url === "/api/admin/fetch-results") return { ok: true, body: { proposed, unmapped: ["Wakanda"] } };
+      return { ok: false, body: {} };
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: /fetch latest results/i }));
+
+    expect(await screen.findByText(/nothing to update/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^apply/i })).toBeNull(); // no write offered
+    expect(screen.getByText(/couldn't match 1 team/i)).toBeInTheDocument();
+    expect(screen.getByText(/Wakanda/)).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalledWith("/api/admin/results", expect.anything());
   });
 });
