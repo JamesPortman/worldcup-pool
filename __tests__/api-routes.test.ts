@@ -36,6 +36,7 @@ import { POST as savePicks } from "@/app/api/pools/[code]/picks/route";
 import { POST as adminResults } from "@/app/api/admin/results/route";
 import { POST as adminData } from "@/app/api/admin/data/route";
 import { DELETE as deletePlayer } from "@/app/api/admin/players/[id]/route";
+import { POST as fetchResults } from "@/app/api/admin/fetch-results/route";
 import { resetRateLimit } from "@/lib/rate-limit";
 import { Prisma } from "@prisma/client";
 
@@ -296,5 +297,19 @@ describe("DELETE /api/admin/players/[id]", () => {
     );
     const res = await deletePlayer(req({}, { "x-admin-token": "test-token" }), idParams("nope"));
     expect(res.status).toBe(404);
+  });
+});
+
+// ── POST /api/admin/fetch-results ─────────────────────────────────────────────────
+describe("POST /api/admin/fetch-results", () => {
+  it("401s without the admin token", async () => {
+    const res = await fetchResults(req({}, {}));
+    expect(res.status).toBe(401);
+  });
+
+  it("400s when FOOTBALL_API_KEY is not configured", async () => {
+    vi.stubEnv("FOOTBALL_API_KEY", "");
+    const res = await fetchResults(req({}, { "x-admin-token": "test-token" }));
+    expect(res.status).toBe(400);
   });
 });

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { groups } from "@/data/worldcup2026";
+import type { ProposedResult } from "@/lib/results";
 
 interface TeamRow {
   code: string;
@@ -45,6 +46,16 @@ function stagePatch(stage: Stage): Pick<TeamRow, "reachedRound" | "isChampion"> 
   }
 }
 
+// One-line summary of a proposed result, for the review list.
+function describeProposed(p: ProposedResult): string {
+  const parts: string[] = [];
+  if (p.wonGroup) parts.push("group winner");
+  if (p.isChampion) parts.push("Champion 🏆");
+  else if (p.reachedRound === "SEMIFINAL") parts.push("reached the Final");
+  else if (p.reachedRound === "FINAL4") parts.push("reached the Final 4");
+  return parts.length ? parts.join(", ") : "no result";
+}
+
 export default function AdminClient() {
   const [token, setToken] = useState("");
   const [unlocked, setUnlocked] = useState(false);
@@ -53,6 +64,10 @@ export default function AdminClient() {
   const [pools, setPools] = useState<PoolRow[]>([]);
   const [msg, setMsg] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [fetching, setFetching] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [proposed, setProposed] = useState<ProposedResult[] | null>(null);
+  const [unmapped, setUnmapped] = useState<string[]>([]);
 
   // Teams bucketed by group, alphabetical within each — matches the picks UI.
   const teamsByGroup = useMemo(() => {
@@ -65,6 +80,20 @@ export default function AdminClient() {
     for (const arr of map.values()) arr.sort((a, b) => a.name.localeCompare(b.name));
     return map;
   }, [teams]);
+
+  // Fetched results that actually differ from what's currently stored.
+  const proposedChanges = useMemo(() => {
+    if (!proposed) return [];
+    return proposed.filter((p) => {
+      const cur = teams.find((t) => t.code === p.code);
+      if (!cur) return false;
+      return (
+        cur.wonGroup !== p.wonGroup ||
+        (cur.reachedRound ?? null) !== p.reachedRound ||
+        cur.isChampion !== p.isChampion
+      );
+    });
+  }, [proposed, teams]);
 
   // Verify the token by loading admin data; nothing sensitive renders until this
   // succeeds. The same token is then reused for every write below.
@@ -104,6 +133,61 @@ export default function AdminClient() {
     setTeams((prev) => prev.map((t) => (t.code === code ? { ...t, ...patch } : t)));
     const name = teams.find((t) => t.code === code)?.name ?? code;
     setMsg(`Saved ${name}.`);
+  }
+
+  // Pull standings + knockout results from the API and stage them for review.
+  async function fetchResults() {
+    setFetching(true);
+    setMsg(null);
+    setProposed(null);
+    setUnmapped([]);
+    try {
+      const res = await fetch("/api/admin/fetch-results", {
+        method: "POST",
+        headers: { "x-admin-token": token },
+      });
+      const data = await res.json();
+      if (!res.ok) { setMsg(data.error ?? "Fetch failed"); return; }
+      setProposed(data.proposed ?? []);
+      setUnmapped(data.unmapped ?? []);
+      if ((data.proposed ?? []).length === 0) setMsg("No results found yet.");
+    } catch {
+      setMsg("Could not reach the results API.");
+    } finally {
+      setFetching(false);
+    }
+  }
+
+  // Apply only the staged changes that differ from the current state.
+  async function applyResults() {
+    setApplying(true);
+    setMsg(null);
+    let applied = 0;
+    for (const p of proposedChanges) {
+      const res = await fetch("/api/admin/results", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-admin-token": token },
+        body: JSON.stringify({
+          kind: "team",
+          code: p.code,
+          patch: { wonGroup: p.wonGroup, reachedRound: p.reachedRound, isChampion: p.isChampion },
+        }),
+      });
+      if (res.ok) {
+        setTeams((prev) =>
+          prev.map((t) =>
+            t.code === p.code
+              ? { ...t, wonGroup: p.wonGroup, reachedRound: p.reachedRound, isChampion: p.isChampion }
+              : t,
+          ),
+        );
+        applied++;
+      }
+    }
+    setApplying(false);
+    setProposed(null);
+    setUnmapped([]);
+    setMsg(`Applied ${applied} result update${applied === 1 ? "" : "s"}.`);
   }
 
   async function togglePoolLock(id: string, locked: boolean) {
@@ -238,6 +322,70 @@ export default function AdminClient() {
           the team&apos;s furthest stage and the app awards all earlier-round points for you.
           Only one team should be <strong>Champion</strong>. Changes save instantly.
         </p>
+
+        {/* Auto-fetch results → review → apply */}
+        <div className="mb-5">
+          <button
+            type="button"
+            onClick={fetchResults}
+            disabled={fetching}
+            className="rounded-md border border-[color:var(--color-brand)] text-[color:var(--color-brand)] px-3 py-1.5 text-sm font-medium hover:bg-[color:var(--color-brand)]/5 disabled:opacity-50"
+          >
+            {fetching ? "Fetching…" : "↻ Fetch latest results"}
+          </button>
+          <span className="ml-2 text-xs text-neutral-500">
+            Pulls live standings + knockout results to review before saving — nothing changes until you apply.
+          </span>
+
+          {proposed !== null && (
+            <div className="mt-3 rounded-lg border border-neutral-300 dark:border-neutral-700 p-3 bg-neutral-50 dark:bg-neutral-900">
+              {proposedChanges.length === 0 ? (
+                <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                  ✓ Nothing to update — stored results already match the API.
+                </p>
+              ) : (
+                <>
+                  <p className="text-sm font-medium mb-2">
+                    {proposedChanges.length} change{proposedChanges.length === 1 ? "" : "s"} to apply:
+                  </p>
+                  <ul className="text-sm space-y-1 mb-3 max-h-60 overflow-y-auto">
+                    {proposedChanges.map((p) => (
+                      <li key={p.code} className="flex justify-between gap-3">
+                        <span className="font-medium">{p.name}</span>
+                        <span className="text-neutral-600 dark:text-neutral-400">{describeProposed(p)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={applyResults}
+                      disabled={applying}
+                      className="rounded-md bg-[color:var(--color-brand)] text-white px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+                    >
+                      {applying
+                        ? "Applying…"
+                        : `Apply ${proposedChanges.length} change${proposedChanges.length === 1 ? "" : "s"}`}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setProposed(null); setUnmapped([]); }}
+                      className="rounded-md border border-neutral-300 dark:border-neutral-700 px-3 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              )}
+              {unmapped.length > 0 && (
+                <p className="mt-3 text-xs text-amber-700 dark:text-amber-400">
+                  Couldn&apos;t match {unmapped.length} team{unmapped.length === 1 ? "" : "s"} from the API
+                  ({unmapped.join(", ")}) — set those manually below.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
 
         <div className="space-y-6">
           {groups
