@@ -24,6 +24,25 @@ export default async function ArchitecturePage({
             path down to the database, plus the CI/CD topology and the domain
             model. Written for engineers extending or operating the system.
           </p>
+
+          {/* Executive summary */}
+          <div className="mt-4 rounded-xl border border-[color:var(--color-brand)]/30 bg-[color:var(--color-brand)]/5 p-4 max-w-3xl">
+            <div className="text-xs font-semibold uppercase tracking-wide text-[color:var(--color-brand)] mb-1">
+              Executive summary
+            </div>
+            <p className="text-sm text-neutral-700 dark:text-neutral-300">
+              The World Cup Pool is a self-serve bracket competition for the 2026 FIFA
+              World Cup. Friends create a pool, share a 6-character code, and each enters
+              their predictions; a live leaderboard scores everyone as real results come
+              in — no accounts, no passwords. It runs on fully managed infrastructure
+              (Next.js on Vercel, Postgres on Neon), with privacy-friendly analytics, a
+              daily automated database backup, and an end-to-end test suite that gates
+              every deploy. An admin enters tournament results in a few clicks — or pulls
+              them automatically from a live football-results API and confirms each change
+              before it is applied.
+            </p>
+          </div>
+
           <dl className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
             {[
               ["Framework", "Next.js 16 (App Router)"],
@@ -197,6 +216,15 @@ export default async function ArchitecturePage({
               ]}
             />
             <FlowCard
+              title="Auto-fetch results (optional)"
+              steps={[
+                "Admin clicks Fetch latest results; AdminClient POSTs to /api/admin/fetch-results (token-gated, needs FOOTBALL_API_KEY).",
+                "Server pulls standings + matches from football-data.org; lib/results.ts maps teams and derives flags — group winners only once a group is finished, plus Final-4, finalists, champion.",
+                "The endpoint returns PROPOSED changes and writes nothing.",
+                "Admin reviews the diff and confirms; changes save via /api/admin/results.",
+              ]}
+            />
+            <FlowCard
               title="Leaderboard"
               steps={[
                 "Server component loads players + picks + teams in one pass.",
@@ -325,9 +353,11 @@ export default async function ArchitecturePage({
     pools/[code]/join/route.ts     join pool
     pools/[code]/picks/route.ts    atomic replace of a player's picks
     admin/results/route.ts         set team results / lock pool
+    admin/fetch-results/route.ts   pull live results from football-data.org
 components/   Navigation (client · active-link) · HeroBanner · ThemeToggle
 lib/          db.ts (Prisma singleton) · session.ts (cookie)
               scoring.ts (pure, cumulative) · lock.ts (pick deadline)
+              results.ts (map providers + derive fetched results)
 data/         worldcup2026.ts (48 teams, rounds, points)
 prisma/       schema.prisma · seed.ts
 scripts/      backup-db.sh · restore-db.sh · db-url.sh
