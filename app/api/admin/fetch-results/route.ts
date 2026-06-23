@@ -46,9 +46,12 @@ export async function POST(req: NextRequest) {
     const matchesData = await matchesRes.json();
 
     const standings: ProviderStanding[] = (standingsData.standings ?? []).map(
-      (s: { table?: { position: number; team?: { name?: string; tla?: string | null } }[] }) => ({
+      (s: {
+        table?: { position: number; playedGames?: number | null; team?: { name?: string; tla?: string | null } }[];
+      }) => ({
         table: (s.table ?? []).map((row) => ({
           position: row.position,
+          playedGames: row.playedGames ?? null,
           team: { name: row.team?.name ?? "", tla: row.team?.tla ?? null },
         })),
       }),

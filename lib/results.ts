@@ -36,7 +36,7 @@ export function buildResolver(): (name: string, tla?: string | null) => string |
 
 // ── Provider response shapes (the subset we read) ───────────────────────────
 export interface ProviderStanding {
-  table: { position: number; team: { name: string; tla?: string | null } }[];
+  table: { position: number; playedGames?: number | null; team: { name: string; tla?: string | null } }[];
 }
 export interface ProviderMatch {
   stage: string;
@@ -91,9 +91,15 @@ export function deriveResults(
     return result.get(code)!;
   };
 
-  // Group winners.
+  // Group winners — only once the group is FINISHED (every team has played all
+  // its round-robin games). This avoids proposing a provisional mid-stage leader.
   for (const s of standings) {
-    const top = s.table?.find((row) => row.position === 1);
+    const table = s.table ?? [];
+    if (table.length < 2) continue;
+    const gamesPerTeam = table.length - 1; // round-robin: each team plays N-1
+    const finished = table.every((row) => (row.playedGames ?? 0) >= gamesPerTeam);
+    if (!finished) continue;
+    const top = table.find((row) => row.position === 1);
     if (top?.team) {
       const r = ensure(top.team.name, top.team.tla);
       if (r) r.wonGroup = true;
