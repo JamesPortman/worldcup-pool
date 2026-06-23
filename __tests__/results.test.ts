@@ -27,9 +27,20 @@ describe("buildResolver", () => {
 });
 
 describe("deriveResults", () => {
+  // Two finished groups (everyone has played all 3 round-robin games).
   const standings = [
-    { table: [{ position: 1, team: { name: "Brazil", tla: "BRA" } }, { position: 2, team: { name: "Morocco", tla: "MAR" } }] },
-    { table: [{ position: 1, team: { name: "Argentina", tla: "ARG" } }] },
+    { table: [
+      { position: 1, playedGames: 3, team: { name: "Brazil", tla: "BRA" } },
+      { position: 2, playedGames: 3, team: { name: "Morocco", tla: "MAR" } },
+      { position: 3, playedGames: 3, team: { name: "Haiti", tla: "HAI" } },
+      { position: 4, playedGames: 3, team: { name: "Scotland", tla: "SCO" } },
+    ] },
+    { table: [
+      { position: 1, playedGames: 3, team: { name: "Argentina", tla: "ARG" } },
+      { position: 2, playedGames: 3, team: { name: "Algeria", tla: "ALG" } },
+      { position: 3, playedGames: 3, team: { name: "Austria", tla: "AUT" } },
+      { position: 4, playedGames: 3, team: { name: "Jordan", tla: "JOR" } },
+    ] },
   ];
   const matches = [
     { stage: "GROUP_STAGE", status: "FINISHED", homeTeam: { name: "Brazil", tla: "BRA" }, awayTeam: { name: "Morocco", tla: "MAR" }, score: { winner: "HOME_TEAM" } },
@@ -48,6 +59,21 @@ describe("deriveResults", () => {
     expect(byCode.ESP.reachedRound).toBe("FINAL4"); // semifinalist
     expect(byCode.ENG.reachedRound).toBe("FINAL4");
     expect(unmapped).toHaveLength(0);
+  });
+
+  it("does not propose a group winner until the group is finished", () => {
+    const partial = [
+      {
+        table: [
+          { position: 1, playedGames: 2, team: { name: "Egypt", tla: "EGY" } },
+          { position: 2, playedGames: 2, team: { name: "Belgium", tla: "BEL" } },
+          { position: 3, playedGames: 2, team: { name: "Iran", tla: "IRN" } },
+          { position: 4, playedGames: 2, team: { name: "New Zealand", tla: "NZL" } },
+        ],
+      },
+    ];
+    const { proposed } = deriveResults(partial, [], buildResolver());
+    expect(proposed).toHaveLength(0); // P2 of 3 → provisional, nothing staged
   });
 
   it("reports teams it can't map instead of crashing", () => {
