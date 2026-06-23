@@ -96,6 +96,7 @@ DATABASE_URL=$(grep '^DATABASE_URL=' .env.production.local | cut -d= -f2- | tr -
 
 - **Before kickoff:** each player joins with the code and submits picks. Picks can be edited until you lock the pool from `/admin`.
 - **After each round:** in `/admin`, set each surviving team's "reached round" to the round they reached. Check **won group** for the 12 group winners after the group stage. Check **champion** for the team that wins the final. The leaderboard updates instantly.
+- **Auto-fetch results (optional):** in `/admin`, the **"Fetch latest results"** button pulls live standings + knockout results from [football-data.org](https://www.football-data.org/) and **stages the changes for you to review** (group winners, Final-4, finalists, champion) — nothing is saved until you click **Apply**. It maps the provider's teams to ours by 3-letter code / name; any it can't match are flagged so you can set them by hand. Enable it by setting a free **`FOOTBALL_API_KEY`** env var on Vercel (the World Cup competition is on the free tier).
 
 ## Backups
 
