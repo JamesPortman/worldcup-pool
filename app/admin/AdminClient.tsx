@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { groups } from "@/data/worldcup2026";
 import type { ProposedResult } from "@/lib/results";
@@ -260,12 +261,22 @@ export default function AdminClient() {
                   <span className="font-medium">{p.name}</span>{" "}
                   <span className="font-mono text-neutral-500">[{p.joinCode}]</span>
                 </span>
-                <button
-                  onClick={() => togglePoolLock(p.id, !p.locked)}
-                  className="rounded-md border border-neutral-300 dark:border-neutral-700 px-3 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                >
-                  {p.locked ? "Unlock picks" : "Lock picks"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/pools/${p.joinCode}/leaderboard`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-md border border-neutral-300 dark:border-neutral-700 px-3 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                  >
+                    Leaderboard ↗
+                  </Link>
+                  <button
+                    onClick={() => togglePoolLock(p.id, !p.locked)}
+                    className="rounded-md border border-neutral-300 dark:border-neutral-700 px-3 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                  >
+                    {p.locked ? "Unlock picks" : "Lock picks"}
+                  </button>
+                </div>
               </div>
 
               {p.players.length > 0 ? (

@@ -75,6 +75,11 @@ describe("AdminClient — token gate", () => {
     expect(screen.getByText("Canada")).toBeInTheDocument();
     expect(screen.getByText(/ABC234/)).toBeInTheDocument(); // pool join code now visible
     expect(screen.getAllByRole("option", { name: /Final 4 \(last 4\)/ }).length).toBeGreaterThan(0);
+
+    // Each pool links to its leaderboard (new tab, so the admin session is kept).
+    const leaderboard = screen.getByRole("link", { name: /leaderboard/i });
+    expect(leaderboard).toHaveAttribute("href", "/pools/ABC234/leaderboard");
+    expect(leaderboard).toHaveAttribute("target", "_blank");
   });
 
   it("shows an error and stays locked on an invalid token", async () => {
