@@ -5,7 +5,7 @@ import type { NextRequest } from "next/server";
 // Prisma and the cookie/session helpers are mocked so the route handlers run in
 // isolation (no DB, no next/headers request scope). lib/lock and the static data
 // are used for real.
-const { prismaMock, sessionMock } = vi.hoisted(() => ({
+const { prismaMock, sessionMock, lockMock } = vi.hoisted(() => ({
   prismaMock: {
     pool: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), findMany: vi.fn() },
     player: { findUnique: vi.fn(), create: vi.fn(), findFirst: vi.fn(), delete: vi.fn() },
@@ -19,6 +19,8 @@ const { prismaMock, sessionMock } = vi.hoisted(() => ({
     clearPlayerIdCookie: vi.fn(),
     generateJoinCode: vi.fn(() => "ABC234"),
   },
+  // roundLocked is configurable per test (default: locked iff the pool is locked).
+  lockMock: { roundLocked: vi.fn((pool: { locked: boolean }) => pool.locked) },
 }));
 
 vi.mock("@/lib/db", () => ({ prisma: prismaMock }));
@@ -27,6 +29,7 @@ vi.mock("@/lib/session", () => sessionMock);
 // tests reflect the mock pool's `locked` flag regardless of the real date.
 vi.mock("@/lib/lock", () => ({
   picksLocked: (pool: { locked: boolean }) => pool.locked,
+  roundLocked: (pool: { locked: boolean }, round: string) => lockMock.roundLocked(pool, round),
   PICKS_LOCK_AT: new Date("2026-06-11T03:59:00Z"),
 }));
 
@@ -54,6 +57,7 @@ beforeEach(() => {
   resetRateLimit();
   sessionMock.setPlayerIdCookie.mockResolvedValue(undefined);
   sessionMock.generateJoinCode.mockReturnValue("ABC234");
+  lockMock.roundLocked.mockImplementation((pool: { locked: boolean }) => pool.locked);
   vi.stubEnv("ADMIN_TOKEN", "test-token");
 });
 
@@ -211,8 +215,41 @@ describe("POST /api/pools/[code]/picks", () => {
     const data = await res.json();
     expect(res.status).toBe(200);
     expect(data).toEqual({ ok: true, count: 2 });
-    expect(prismaMock.pick.deleteMany).toHaveBeenCalledWith({ where: { playerId: "player_1" } });
+    expect(prismaMock.pick.deleteMany).toHaveBeenCalledWith({
+      where: {
+        playerId: "player_1",
+        round: { in: expect.arrayContaining(["GROUP", "FINAL8", "FINAL4", "SEMIFINAL", "WINNER"]) },
+      },
+    });
     expect(prismaMock.$transaction).toHaveBeenCalledOnce();
+  });
+
+  it("rewrites only still-editable rounds, preserving locked ones", async () => {
+    sessionMock.getPlayerIdCookie.mockResolvedValue("player_1");
+    prismaMock.pool.findUnique.mockResolvedValue(member);
+    prismaMock.$transaction.mockResolvedValue([]);
+    // Only the Group of 8 (FINAL8) is still open; the group stage is locked.
+    lockMock.roundLocked.mockImplementation(
+      (pool: { locked: boolean }, round: string) => pool.locked || round !== "FINAL8",
+    );
+    const picks = [
+      { round: "GROUP", teamCode: "BRA", groupId: "C" }, // locked round → ignored on write
+      { round: "FINAL8", teamCode: "ARG" },              // open round → written
+    ];
+    const res = await savePicks(req({ picks }), params("ABC234"));
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data).toEqual({ ok: true, count: 1 }); // only the FINAL8 pick is written
+    // The delete is scoped to editable rounds, so locked GROUP picks survive.
+    const deleteArg = prismaMock.pick.deleteMany.mock.calls[0][0];
+    expect(deleteArg.where.round.in).toContain("FINAL8");
+    expect(deleteArg.where.round.in).not.toContain("GROUP");
+    expect(prismaMock.pick.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: [{ playerId: "player_1", round: "FINAL8", teamCode: "ARG", groupId: null }],
+      }),
+    );
   });
 });
 

@@ -16,13 +16,14 @@ interface TeamRow {
 interface PlayerRow { id: string; displayName: string; pickCount: number; }
 interface PoolRow { id: string; name: string; joinCode: string; locked: boolean; players: PlayerRow[]; }
 
-// The four stages the admin can mark, in plain language. Each maps to the
-// underlying scoring flags so the admin never has to think about reachedRound /
-// isChampion or the cumulative model — picking "Champion" awards everything.
-type Stage = "NONE" | "FINAL4" | "SEMIFINAL" | "CHAMPION";
+// The stages the admin can mark, in plain language. Each maps to the underlying
+// scoring flags so the admin never has to think about reachedRound / isChampion
+// or the cumulative model — picking "Champion" awards everything.
+type Stage = "NONE" | "FINAL8" | "FINAL4" | "SEMIFINAL" | "CHAMPION";
 
 const STAGE_OPTIONS: { value: Stage; label: string }[] = [
   { value: "NONE", label: "Out / not yet" },
+  { value: "FINAL8", label: "Group of 8 (last 8)" },
   { value: "FINAL4", label: "Final 4 (last 4)" },
   { value: "SEMIFINAL", label: "Final (last 2)" },
   { value: "CHAMPION", label: "Champion 🏆" },
@@ -32,14 +33,16 @@ function teamStage(t: TeamRow): Stage {
   if (t.isChampion) return "CHAMPION";
   if (t.reachedRound === "SEMIFINAL") return "SEMIFINAL";
   if (t.reachedRound === "FINAL4") return "FINAL4";
+  if (t.reachedRound === "FINAL8") return "FINAL8";
   return "NONE";
 }
 
 // What to persist for each stage. The champion is also a finalist, so it gets
 // reachedRound = SEMIFINAL; cumulative scoring then awards Final-4 + Final +
-// Winner automatically.
+// Winner automatically. Group of 8 stays standalone (no later-round credit).
 function stagePatch(stage: Stage): Pick<TeamRow, "reachedRound" | "isChampion"> {
   switch (stage) {
+    case "FINAL8": return { reachedRound: "FINAL8", isChampion: false };
     case "FINAL4": return { reachedRound: "FINAL4", isChampion: false };
     case "SEMIFINAL": return { reachedRound: "SEMIFINAL", isChampion: false };
     case "CHAMPION": return { reachedRound: "SEMIFINAL", isChampion: true };
@@ -54,6 +57,7 @@ function describeProposed(p: ProposedResult): string {
   if (p.isChampion) parts.push("Champion 🏆");
   else if (p.reachedRound === "SEMIFINAL") parts.push("reached the Final");
   else if (p.reachedRound === "FINAL4") parts.push("reached the Final 4");
+  else if (p.reachedRound === "FINAL8") parts.push("reached the Group of 8");
   return parts.length ? parts.join(", ") : "no result";
 }
 

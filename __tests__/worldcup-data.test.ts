@@ -39,10 +39,10 @@ describe("2026 World Cup seed data", () => {
 });
 
 describe("ROUNDS / PICKS_PER_ROUND", () => {
-  it("lists the four rounds in tournament order with escalating points", () => {
-    expect(ROUNDS.map((r) => r.key)).toEqual(["GROUP", "FINAL4", "SEMIFINAL", "WINNER"]);
+  it("lists the rounds in tournament order with escalating points", () => {
+    expect(ROUNDS.map((r) => r.key)).toEqual(["GROUP", "FINAL8", "FINAL4", "SEMIFINAL", "WINNER"]);
     const points = ROUNDS.map((r) => r.points);
-    expect(points).toEqual([1, 4, 8, 16]);
+    expect(points).toEqual([1, 2, 4, 8, 16]);
     // strictly increasing
     for (let i = 1; i < points.length; i++) {
       expect(points[i]).toBeGreaterThan(points[i - 1]);
@@ -53,15 +53,15 @@ describe("ROUNDS / PICKS_PER_ROUND", () => {
     for (const r of ROUNDS) {
       expect(PICKS_PER_ROUND[r.key as RoundKey]).toBeGreaterThan(0);
     }
-    expect(PICKS_PER_ROUND).toEqual({ GROUP: 12, FINAL4: 4, SEMIFINAL: 2, WINNER: 1 });
+    expect(PICKS_PER_ROUND).toEqual({ GROUP: 12, FINAL8: 8, FINAL4: 4, SEMIFINAL: 2, WINNER: 1 });
   });
 
-  it("caps the maximum achievable score at 60 points", () => {
+  it("caps the maximum achievable score at 76 points", () => {
     const max = ROUNDS.reduce(
       (sum, r) => sum + PICKS_PER_ROUND[r.key as RoundKey] * r.points,
       0,
     );
-    // 12*1 + 4*4 + 2*8 + 1*16 = 12 + 16 + 16 + 16
-    expect(max).toBe(60);
+    // 12*1 + 8*2 + 4*4 + 2*8 + 1*16 = 12 + 16 + 16 + 16 + 16
+    expect(max).toBe(76);
   });
 });

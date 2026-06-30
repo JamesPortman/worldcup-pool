@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getPlayerIdCookie } from "@/lib/session";
-import { picksLocked } from "@/lib/lock";
+import { roundLocked } from "@/lib/lock";
 import { ROUNDS, PICKS_PER_ROUND, type RoundKey } from "@/data/worldcup2026";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +31,14 @@ export async function POST(
   if (pool.players.length === 0) {
     return NextResponse.json({ error: "You're not a member of this pool." }, { status: 403 });
   }
-  if (picksLocked(pool)) return NextResponse.json({ error: "Picks are closed." }, { status: 400 });
+
+  // Only rounds still inside their editing window can be changed; any others keep
+  // whatever is already stored (a save touching only an open round is allowed).
+  const editableRounds = ROUNDS.map((r) => r.key).filter((k) => !roundLocked(pool, k));
+  if (editableRounds.length === 0) {
+    return NextResponse.json({ error: "Picks are closed." }, { status: 400 });
+  }
+  const editable = new Set<string>(editableRounds);
 
   const body = (await req.json()) as { picks?: IncomingPick[] };
   const picks = body.picks ?? [];
@@ -80,11 +87,12 @@ export async function POST(
     }
   }
 
-  // Replace the player's picks atomically.
+  // Replace only the editable rounds' picks; locked rounds are left untouched.
+  const toWrite = picks.filter((p) => editable.has(p.round));
   await prisma.$transaction([
-    prisma.pick.deleteMany({ where: { playerId } }),
+    prisma.pick.deleteMany({ where: { playerId, round: { in: editableRounds } } }),
     prisma.pick.createMany({
-      data: picks.map((p) => ({
+      data: toWrite.map((p) => ({
         playerId,
         round: p.round,
         teamCode: p.teamCode,
@@ -94,5 +102,5 @@ export async function POST(
     }),
   ]);
 
-  return NextResponse.json({ ok: true, count: picks.length });
+  return NextResponse.json({ ok: true, count: toWrite.length });
 }
