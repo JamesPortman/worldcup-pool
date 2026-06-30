@@ -1,5 +1,13 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { picksLocked, effectiveLockAt, PICKS_LOCK_AT } from "@/lib/lock";
+import {
+  picksLocked,
+  effectiveLockAt,
+  roundLocked,
+  lockedRounds,
+  editDeadline,
+  PICKS_LOCK_AT,
+  ROUND_LOCK_AT,
+} from "@/lib/lock";
 
 const before = new Date(PICKS_LOCK_AT.getTime() - 60_000);
 const after = new Date(PICKS_LOCK_AT.getTime() + 60_000);
@@ -19,6 +27,36 @@ describe("picksLocked", () => {
 
   it("is locked exactly at the deadline", () => {
     expect(picksLocked({ locked: false }, PICKS_LOCK_AT)).toBe(true);
+  });
+});
+
+describe("per-round locks — Group of 8 editing window", () => {
+  const final8At = ROUND_LOCK_AT.FINAL8!;
+  const afterGlobal = new Date(PICKS_LOCK_AT.getTime() + 60_000); // past Jun 11, before Jul 4
+  const afterFinal8 = new Date(final8At.getTime() + 60_000);
+
+  it("keeps Group of 8 open past the global deadline, while other rounds lock", () => {
+    expect(roundLocked({ locked: false }, "FINAL8", afterGlobal)).toBe(false);
+    expect(roundLocked({ locked: false }, "GROUP", afterGlobal)).toBe(true);
+    expect(roundLocked({ locked: false }, "WINNER", afterGlobal)).toBe(true);
+  });
+
+  it("locks Group of 8 once its own deadline passes", () => {
+    expect(roundLocked({ locked: false }, "FINAL8", afterFinal8)).toBe(true);
+  });
+
+  it("a manual admin lock closes every round, including Group of 8", () => {
+    expect(roundLocked({ locked: true }, "FINAL8", afterGlobal)).toBe(true);
+  });
+
+  it("lockedRounds: only FINAL8 is open between the two deadlines", () => {
+    const map = lockedRounds({ locked: false }, afterGlobal);
+    expect(map).toEqual({ GROUP: true, FINAL8: false, FINAL4: true, SEMIFINAL: true, WINNER: true });
+  });
+
+  it("editDeadline is the Group-of-8 close while only it is open, then null", () => {
+    expect(editDeadline({ locked: false }, afterGlobal)?.getTime()).toBe(final8At.getTime());
+    expect(editDeadline({ locked: false }, afterFinal8)).toBeNull();
   });
 });
 
