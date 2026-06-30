@@ -10,13 +10,15 @@ interface TeamLite { code: string; name: string; group: string; }
 interface ExistingPick { round: string; teamCode: string; groupId: string | null; }
 
 const GROUP_META     = ROUNDS.find((r) => r.key === "GROUP")!;
+const FINAL8_META    = ROUNDS.find((r) => r.key === "FINAL8")!;
 const FINAL4_META    = ROUNDS.find((r) => r.key === "FINAL4")!;
 const SEMIFINAL_META = ROUNDS.find((r) => r.key === "SEMIFINAL")!;
 const WINNER_META    = ROUNDS.find((r) => r.key === "WINNER")!;
 
-// Total picks a complete bracket needs: 12 + 4 + 2 + 1 = 19.
+// Total picks a complete bracket needs: 12 + 8 + 4 + 2 + 1 = 27.
 const TOTAL_EXPECTED =
-  PICKS_PER_ROUND.GROUP + PICKS_PER_ROUND.FINAL4 + PICKS_PER_ROUND.SEMIFINAL + PICKS_PER_ROUND.WINNER;
+  PICKS_PER_ROUND.GROUP + PICKS_PER_ROUND.FINAL8 + PICKS_PER_ROUND.FINAL4 +
+  PICKS_PER_ROUND.SEMIFINAL + PICKS_PER_ROUND.WINNER;
 
 export default function PicksClient({
   poolCode,
@@ -49,6 +51,9 @@ export default function PicksClient({
   for (const p of existingPicks)
     if (p.round === "GROUP" && p.groupId) initialGroupPicks[p.groupId] = p.teamCode;
 
+  const initialFinal8 = new Set<string>();
+  for (const p of existingPicks) if (p.round === "FINAL8") initialFinal8.add(p.teamCode);
+
   const initialFinal4 = new Set<string>();
   for (const p of existingPicks) if (p.round === "FINAL4") initialFinal4.add(p.teamCode);
 
@@ -59,6 +64,7 @@ export default function PicksClient({
   for (const p of existingPicks) if (p.round === "WINNER") initialWinner.add(p.teamCode);
 
   const [groupPicks,    setGroupPicks]    = useState<Record<string, string>>(initialGroupPicks);
+  const [final8Picks,   setFinal8Picks]   = useState<Set<string>>(initialFinal8);
   const [final4Picks,   setFinal4Picks]   = useState<Set<string>>(initialFinal4);
   const [semifinalPicks, setSemifinalPicks] = useState<Set<string>>(initialSemifinal);
   const [winnerPick,    setWinnerPick]    = useState<Set<string>>(initialWinner);
@@ -75,16 +81,17 @@ export default function PicksClient({
     [groupPicks],
   );
 
+  const final8Unlocked    = groupPickCount === PICKS_PER_ROUND.GROUP;          // 12
   const final4Unlocked    = groupPickCount === PICKS_PER_ROUND.GROUP;          // 12
   const semifinalUnlocked = final4Picks.size === PICKS_PER_ROUND.FINAL4;       // 4
   const winnerUnlocked    = semifinalPicks.size === PICKS_PER_ROUND.SEMIFINAL; // 2
 
   const totalPicks =
-    groupPickCount + final4Picks.size + semifinalPicks.size + winnerPick.size;
+    groupPickCount + final8Picks.size + final4Picks.size + semifinalPicks.size + winnerPick.size;
 
   // ── Filtered option lists ─────────────────────────────────────────────────
-  // Final 4 options = the 12 group winners you picked, sorted alphabetically
-  const final4Options = useMemo(
+  // Group-of-8 + Final-4 options = the 12 group winners you picked, sorted alphabetically
+  const groupWinnerOptions = useMemo(
     () =>
       groups
         .map((g) => groupPicks[g])
@@ -122,6 +129,8 @@ export default function PicksClient({
     setGroupPicks(newGroupPicks);
 
     const newWinners = new Set(Object.values(newGroupPicks).filter(Boolean));
+    // Group of 8 is standalone: just drop any picks that are no longer group winners.
+    setFinal8Picks((prev) => new Set([...prev].filter((c) => newWinners.has(c))));
     setFinal4Picks((prev) => {
       const filtered = new Set([...prev].filter((c) => newWinners.has(c)));
       // Cascade → semifinal
@@ -132,6 +141,22 @@ export default function PicksClient({
         return filteredSF;
       });
       return filtered;
+    });
+    setSaved(false);
+  }
+
+  // Group of 8 is standalone — pick up to 8 group winners, nothing cascades from it.
+  function toggleFinal8(code: string) {
+    if (locked || !final8Unlocked) return;
+    setFinal8Picks((prev) => {
+      const next = new Set(prev);
+      if (next.has(code)) {
+        next.delete(code);
+      } else {
+        if (next.size >= PICKS_PER_ROUND.FINAL8) return prev;
+        next.add(code);
+      }
+      return next;
     });
     setSaved(false);
   }
@@ -204,6 +229,7 @@ export default function PicksClient({
     setResetting(false);
     if (!res.ok) { setError(data.error ?? "Reset failed"); return; }
     setGroupPicks({});
+    setFinal8Picks(new Set());
     setFinal4Picks(new Set());
     setSemifinalPicks(new Set());
     setWinnerPick(new Set());
@@ -220,6 +246,7 @@ export default function PicksClient({
     const picks: Array<{ round: string; teamCode: string; groupId?: string }> = [];
     for (const [groupId, teamCode] of Object.entries(groupPicks))
       if (teamCode) picks.push({ round: "GROUP", teamCode, groupId });
+    for (const code of final8Picks)    picks.push({ round: "FINAL8",    teamCode: code });
     for (const code of final4Picks)    picks.push({ round: "FINAL4",    teamCode: code });
     for (const code of semifinalPicks) picks.push({ round: "SEMIFINAL", teamCode: code });
     for (const code of winnerPick)     picks.push({ round: "WINNER",    teamCode: code });
@@ -296,10 +323,37 @@ export default function PicksClient({
 
         {!final4Unlocked && (
           <p className="mt-3 text-sm text-neutral-500">
-            Pick all 12 group winners to unlock the Final 4 section. ({groupPickCount}/12 done)
+            Pick all 12 group winners to unlock the Group of 8 and Final 4 sections. ({groupPickCount}/12 done)
           </p>
         )}
       </section>
+
+      {/* ── Group of 8 (unlocks after all 12 groups; standalone) ── */}
+      {final8Unlocked && (
+        <section>
+          <SectionHeader
+            title={FINAL8_META.label}
+            subtitle={`Pick the 8 teams you think reach the quarter-finals, from your group winners. (${FINAL8_META.points} pts each) — ${final8Picks.size}/${PICKS_PER_ROUND.FINAL8} selected.`}
+          />
+          <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
+            {groupWinnerOptions.map((t) => {
+              const selected = final8Picks.has(t.code);
+              const full     = final8Picks.size >= PICKS_PER_ROUND.FINAL8;
+              const disabled = locked || (!selected && full);
+              return (
+                <TeamButton
+                  key={t.code}
+                  team={t}
+                  selected={selected}
+                  disabled={disabled}
+                  onClick={() => toggleFinal8(t.code)}
+                  showGroup={false}
+                />
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* ── Final 4 (unlocks after all 12 groups) ── */}
       {final4Unlocked && (
@@ -309,7 +363,7 @@ export default function PicksClient({
             subtitle={`Pick 4 semi-finalists from your group winners. (${FINAL4_META.points} pts each) — ${final4Picks.size}/${PICKS_PER_ROUND.FINAL4} selected.`}
           />
           <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
-            {final4Options.map((t) => {
+            {groupWinnerOptions.map((t) => {
               const selected = final4Picks.has(t.code);
               const full     = final4Picks.size >= PICKS_PER_ROUND.FINAL4;
               const disabled = locked || (!selected && full);

@@ -91,6 +91,29 @@ describe("scorePick — FINAL4 / SEMIFINAL rounds", () => {
   });
 });
 
+describe("scorePick — FINAL8 (Group of 8) round", () => {
+  it("awards 2 points for a correct Group-of-8 pick", () => {
+    const t = team({ code: "CRO", name: "Croatia", group: "F", reachedRound: "FINAL8" });
+    const p = pick({ round: "FINAL8", teamCode: "CRO" });
+    expect(scorePick(p, t).points).toBe(2);
+  });
+
+  it("still awards Group-of-8 points to a team that advanced further (cumulative)", () => {
+    const t = team({ code: "ESP", name: "Spain", group: "H", reachedRound: "FINAL4" });
+    expect(scorePick(pick({ round: "FINAL8", teamCode: "ESP" }), t).points).toBe(2);
+  });
+
+  it("does not award Final-4 points to a team that only reached the Group of 8", () => {
+    const t = team({ code: "CRO", name: "Croatia", group: "F", reachedRound: "FINAL8" });
+    expect(scorePick(pick({ round: "FINAL4", teamCode: "CRO" }), t).points).toBe(0);
+  });
+
+  it("awards 0 for a Group-of-8 pick on a team that did not reach the quarter-finals", () => {
+    const t = team({ code: "SCO", name: "Scotland", group: "C", reachedRound: null });
+    expect(scorePick(pick({ round: "FINAL8", teamCode: "SCO" }), t).points).toBe(0);
+  });
+});
+
 describe("scorePick — cumulative knockout credit", () => {
   it("still awards FINAL4 points to a team that advanced to the final", () => {
     const t = team({ code: "FRA", name: "France", group: "I", reachedRound: "SEMIFINAL" });
@@ -143,7 +166,7 @@ describe("scoreAllPicks", () => {
   it("returns all-zero rounds and total 0 when there are no picks", () => {
     const { byRound, total, scored } = scoreAllPicks([], teamsByCode);
     expect(total).toBe(0);
-    expect(byRound).toEqual({ GROUP: 0, FINAL4: 0, SEMIFINAL: 0, WINNER: 0 });
+    expect(byRound).toEqual({ GROUP: 0, FINAL8: 0, FINAL4: 0, SEMIFINAL: 0, WINNER: 0 });
     expect(scored).toHaveLength(0);
   });
 
@@ -160,6 +183,6 @@ describe("scoreAllPicks", () => {
 
 describe("POINTS table", () => {
   it("matches the documented scoring scale", () => {
-    expect(POINTS).toEqual({ GROUP: 1, FINAL4: 4, SEMIFINAL: 8, WINNER: 16 });
+    expect(POINTS).toEqual({ GROUP: 1, FINAL8: 2, FINAL4: 4, SEMIFINAL: 8, WINNER: 16 });
   });
 });

@@ -61,6 +61,19 @@ describe("deriveResults", () => {
     expect(unmapped).toHaveLength(0);
   });
 
+  it("marks quarter-finalists as FINAL8, keeping the furthest stage for deeper runs", () => {
+    const qfMatches = [
+      { stage: "QUARTER_FINALS", status: "FINISHED", homeTeam: { name: "England", tla: "ENG" }, awayTeam: { name: "Brazil", tla: "BRA" }, score: { winner: "AWAY_TEAM" } },
+      { stage: "SEMI_FINALS",    status: "FINISHED", homeTeam: { name: "Brazil",  tla: "BRA" }, awayTeam: { name: "Spain",  tla: "ESP" }, score: { winner: "HOME_TEAM" } },
+    ];
+    const { proposed, unmapped } = deriveResults([], qfMatches, buildResolver());
+    const byCode = Object.fromEntries(proposed.map((p) => [p.code, p]));
+    expect(byCode.ENG.reachedRound).toBe("FINAL8"); // lost in the quarter-final
+    expect(byCode.BRA.reachedRound).toBe("FINAL4"); // QF + SF → furthest stage wins
+    expect(byCode.ESP.reachedRound).toBe("FINAL4"); // semifinalist
+    expect(unmapped).toHaveLength(0);
+  });
+
   it("does not propose a group winner until the group is finished", () => {
     const partial = [
       {
