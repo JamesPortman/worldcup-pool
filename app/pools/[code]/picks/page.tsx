@@ -3,7 +3,7 @@ import Navigation from "@/components/Navigation";
 import HeroBanner from "@/components/HeroBanner";
 import { prisma } from "@/lib/db";
 import { getPlayerIdCookie } from "@/lib/session";
-import { lockedRounds, editDeadline } from "@/lib/lock";
+import { picksLocked } from "@/lib/lock";
 import PicksClient from "./PicksClient";
 
 export const dynamic = "force-dynamic";
@@ -44,8 +44,7 @@ export default async function PicksPage({
           </p>
           <PicksClient
             poolCode={pool.joinCode}
-            roundLocked={lockedRounds({ locked: true })}
-            editDeadline={null}
+            locked={true}
             teams={teams}
             existingPicks={target.picks.map((p) => ({
               round: p.round,
@@ -67,16 +66,6 @@ export default async function PicksPage({
   });
   if (!me) redirect(`/pools/${pool.joinCode}`);
 
-  const roundLocked = lockedRounds(pool);
-  const deadline = editDeadline(pool);
-  const allLocked = Object.values(roundLocked).every(Boolean);
-  const allOpen = Object.values(roundLocked).every((v) => !v);
-  const message = allLocked
-    ? "Picks are locked — read-only."
-    : allOpen
-      ? "Save anytime. You can edit until entries close on June 10, 2026."
-      : "The group stage is locked, but you can still edit your Group of 8 picks until 23:59 ET on July 3.";
-
   return (
     <>
       <Navigation poolCode={pool.joinCode} />
@@ -84,12 +73,14 @@ export default async function PicksPage({
       <main className="mx-auto max-w-4xl px-4 py-6 sm:py-10">
         <h1 className="text-3xl font-bold">Your picks</h1>
         <p className="mt-1 text-neutral-600 dark:text-neutral-400">
-          Hi {me.displayName}. {message}
+          Hi {me.displayName}.{" "}
+          {picksLocked(pool)
+            ? "Picks are locked — read-only."
+            : "Save anytime. You can edit until entries close on June 10, 2026."}
         </p>
         <PicksClient
           poolCode={pool.joinCode}
-          roundLocked={roundLocked}
-          editDeadline={deadline ? deadline.getTime() : null}
+          locked={picksLocked(pool)}
           teams={teams}
           existingPicks={me.picks.map((p) => ({
             round: p.round,

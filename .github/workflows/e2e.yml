@@ -27,9 +27,6 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/worldcup_test
       DATABASE_URL_UNPOOLED: postgresql://postgres:postgres@localhost:5432/worldcup_test
       ADMIN_TOKEN: test-token
-      # Simulate "before kickoff" so the picks-editing e2e can interact with the
-      # form. Production leaves this unset and uses the real June 11 deadline.
-      PICKS_LOCK_AT_OVERRIDE: "2027-01-01T00:00:00Z"
       CI: "true"
     steps:
       - uses: actions/checkout@v4

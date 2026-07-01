@@ -47,9 +47,9 @@ export function scoreAllPicks(
   picks: Pick[],
   teamsByCode: Record<string, Team>,
 ): { byRound: Record<RoundKey, number>; total: number; scored: ScoredPick[] } {
-  const byRound = Object.fromEntries(
-    ROUND_ORDER.map((k) => [k, 0]),
-  ) as Record<RoundKey, number>;
+  const byRound: Record<RoundKey, number> = {
+    GROUP: 0, FINAL4: 0, SEMIFINAL: 0, WINNER: 0,
+  };
   let total = 0;
   const scored: ScoredPick[] = [];
   for (const p of picks) {

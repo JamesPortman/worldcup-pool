@@ -46,21 +46,20 @@ export interface ProviderMatch {
   score: { winner?: string | null };
 }
 
-export type ReachedRound = "FINAL8" | "FINAL4" | "SEMIFINAL" | null;
+export type ReachedRound = "FINAL4" | "SEMIFINAL" | null;
 
 export interface ProposedResult {
   code: string;
   name: string;
   wonGroup: boolean;
-  reachedRound: ReachedRound; // FINAL8 = last 8, FINAL4 = last 4, SEMIFINAL = reached final
+  reachedRound: ReachedRound; // FINAL4 = reached last 4, SEMIFINAL = reached final
   isChampion: boolean;
 }
 
 /**
  * Derives each team's result flags from group standings + knockout matches.
  * - wonGroup: 1st place in a group standings table.
- * - reachedRound FINAL8: played in a quarter-final.
- * - reachedRound FINAL4: played in a semi-final (cumulative — also implies FINAL8).
+ * - reachedRound FINAL4: played in a semi-final.
  * - reachedRound SEMIFINAL: played in the final (cumulative — also implies FINAL4).
  * - isChampion: won the final.
  * Only teams with at least one positive result are returned.
@@ -108,19 +107,13 @@ export function deriveResults(
   }
 
   // Knockout progression.
-  const quarterfinalists = new Set<string>();
   const semifinalists = new Set<string>();
   const finalists = new Set<string>();
   let champion: string | null = null;
 
   for (const m of matches) {
     const stage = m.stage?.toUpperCase();
-    if (stage === "QUARTER_FINALS" || stage === "QUARTER_FINAL") {
-      for (const t of [m.homeTeam, m.awayTeam]) {
-        const r = ensure(t.name, t.tla);
-        if (r) quarterfinalists.add(r.code);
-      }
-    } else if (stage === "SEMI_FINALS" || stage === "SEMI_FINAL") {
+    if (stage === "SEMI_FINALS" || stage === "SEMI_FINAL") {
       for (const t of [m.homeTeam, m.awayTeam]) {
         const r = ensure(t.name, t.tla);
         if (r) semifinalists.add(r.code);
@@ -137,11 +130,6 @@ export function deriveResults(
     }
   }
 
-  // Apply weakest → strongest so reachedRound lands on each team's furthest stage.
-  for (const code of quarterfinalists) {
-    const r = result.get(code);
-    if (r) r.reachedRound = "FINAL8";
-  }
   for (const code of semifinalists) {
     const r = result.get(code);
     if (r) r.reachedRound = "FINAL4";
