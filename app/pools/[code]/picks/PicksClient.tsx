@@ -4,39 +4,32 @@ import { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ROUNDS, PICKS_PER_ROUND, groups, type RoundKey } from "@/data/worldcup2026";
+import { PICKS_LOCK_AT } from "@/lib/lock";
 
 interface TeamLite { code: string; name: string; group: string; }
 interface ExistingPick { round: string; teamCode: string; groupId: string | null; }
 
 const GROUP_META     = ROUNDS.find((r) => r.key === "GROUP")!;
-const FINAL8_META    = ROUNDS.find((r) => r.key === "FINAL8")!;
 const FINAL4_META    = ROUNDS.find((r) => r.key === "FINAL4")!;
 const SEMIFINAL_META = ROUNDS.find((r) => r.key === "SEMIFINAL")!;
 const WINNER_META    = ROUNDS.find((r) => r.key === "WINNER")!;
 
-// Total picks a complete bracket needs: 12 + 8 + 4 + 2 + 1 = 27.
+// Total picks a complete bracket needs: 12 + 4 + 2 + 1 = 19.
 const TOTAL_EXPECTED =
-  PICKS_PER_ROUND.GROUP + PICKS_PER_ROUND.FINAL8 + PICKS_PER_ROUND.FINAL4 +
-  PICKS_PER_ROUND.SEMIFINAL + PICKS_PER_ROUND.WINNER;
+  PICKS_PER_ROUND.GROUP + PICKS_PER_ROUND.FINAL4 + PICKS_PER_ROUND.SEMIFINAL + PICKS_PER_ROUND.WINNER;
 
 export default function PicksClient({
   poolCode,
-  roundLocked,
-  editDeadline,
+  locked,
   teams,
   existingPicks,
 }: {
   poolCode: string;
-  roundLocked: Record<RoundKey, boolean>;
-  editDeadline: number | null; // epoch ms of the latest editable deadline, or null
+  locked: boolean;
   teams: TeamLite[];
   existingPicks: ExistingPick[];
 }) {
   const router = useRouter();
-
-  // Editing state across all rounds (one round can be open while others are locked).
-  const anyEditable = Object.values(roundLocked).some((v) => !v);
-  const allEditable = Object.values(roundLocked).every((v) => !v);
 
   const teamsByGroup = useMemo(() => {
     const m: Record<string, TeamLite[]> = {};
@@ -56,9 +49,6 @@ export default function PicksClient({
   for (const p of existingPicks)
     if (p.round === "GROUP" && p.groupId) initialGroupPicks[p.groupId] = p.teamCode;
 
-  const initialFinal8 = new Set<string>();
-  for (const p of existingPicks) if (p.round === "FINAL8") initialFinal8.add(p.teamCode);
-
   const initialFinal4 = new Set<string>();
   for (const p of existingPicks) if (p.round === "FINAL4") initialFinal4.add(p.teamCode);
 
@@ -69,7 +59,6 @@ export default function PicksClient({
   for (const p of existingPicks) if (p.round === "WINNER") initialWinner.add(p.teamCode);
 
   const [groupPicks,    setGroupPicks]    = useState<Record<string, string>>(initialGroupPicks);
-  const [final8Picks,   setFinal8Picks]   = useState<Set<string>>(initialFinal8);
   const [final4Picks,   setFinal4Picks]   = useState<Set<string>>(initialFinal4);
   const [semifinalPicks, setSemifinalPicks] = useState<Set<string>>(initialSemifinal);
   const [winnerPick,    setWinnerPick]    = useState<Set<string>>(initialWinner);
@@ -86,17 +75,16 @@ export default function PicksClient({
     [groupPicks],
   );
 
-  const final8Unlocked    = groupPickCount === PICKS_PER_ROUND.GROUP;          // 12
   const final4Unlocked    = groupPickCount === PICKS_PER_ROUND.GROUP;          // 12
   const semifinalUnlocked = final4Picks.size === PICKS_PER_ROUND.FINAL4;       // 4
   const winnerUnlocked    = semifinalPicks.size === PICKS_PER_ROUND.SEMIFINAL; // 2
 
   const totalPicks =
-    groupPickCount + final8Picks.size + final4Picks.size + semifinalPicks.size + winnerPick.size;
+    groupPickCount + final4Picks.size + semifinalPicks.size + winnerPick.size;
 
   // ── Filtered option lists ─────────────────────────────────────────────────
-  // Group-of-8 + Final-4 options = the 12 group winners you picked, sorted alphabetically
-  const groupWinnerOptions = useMemo(
+  // Final 4 options = the 12 group winners you picked, sorted alphabetically
+  const final4Options = useMemo(
     () =>
       groups
         .map((g) => groupPicks[g])
@@ -129,13 +117,11 @@ export default function PicksClient({
 
   // ── Handlers (each cascades to clear downstream invalid picks) ────────────
   function handleGroupChange(groupId: string, teamCode: string) {
-    if (roundLocked.GROUP) return;
+    if (locked) return;
     const newGroupPicks = { ...groupPicks, [groupId]: teamCode };
     setGroupPicks(newGroupPicks);
 
     const newWinners = new Set(Object.values(newGroupPicks).filter(Boolean));
-    // Group of 8 is standalone: just drop any picks that are no longer group winners.
-    setFinal8Picks((prev) => new Set([...prev].filter((c) => newWinners.has(c))));
     setFinal4Picks((prev) => {
       const filtered = new Set([...prev].filter((c) => newWinners.has(c)));
       // Cascade → semifinal
@@ -150,24 +136,8 @@ export default function PicksClient({
     setSaved(false);
   }
 
-  // Group of 8 is standalone — pick up to 8 group winners, nothing cascades from it.
-  function toggleFinal8(code: string) {
-    if (roundLocked.FINAL8 || !final8Unlocked) return;
-    setFinal8Picks((prev) => {
-      const next = new Set(prev);
-      if (next.has(code)) {
-        next.delete(code);
-      } else {
-        if (next.size >= PICKS_PER_ROUND.FINAL8) return prev;
-        next.add(code);
-      }
-      return next;
-    });
-    setSaved(false);
-  }
-
   function toggleFinal4(code: string) {
-    if (roundLocked.FINAL4 || !final4Unlocked) return;
+    if (locked || !final4Unlocked) return;
     setFinal4Picks((prev) => {
       const next = new Set(prev);
       if (next.has(code)) {
@@ -188,7 +158,7 @@ export default function PicksClient({
   }
 
   function toggleSemifinal(code: string) {
-    if (roundLocked.SEMIFINAL || !semifinalUnlocked) return;
+    if (locked || !semifinalUnlocked) return;
     setSemifinalPicks((prev) => {
       const next = new Set(prev);
       if (next.has(code)) {
@@ -205,7 +175,7 @@ export default function PicksClient({
   }
 
   function toggleWinner(code: string) {
-    if (roundLocked.WINNER || !winnerUnlocked) return;
+    if (locked || !winnerUnlocked) return;
     setWinnerPick((prev) => {
       const next = new Set(prev);
       if (next.has(code)) {
@@ -221,7 +191,7 @@ export default function PicksClient({
 
   // ── Reset ─────────────────────────────────────────────────────────────────
   async function resetPicks() {
-    if (!allEditable) return;
+    if (locked) return;
     setResetting(true);
     setError(null);
     setSaved(false);
@@ -234,7 +204,6 @@ export default function PicksClient({
     setResetting(false);
     if (!res.ok) { setError(data.error ?? "Reset failed"); return; }
     setGroupPicks({});
-    setFinal8Picks(new Set());
     setFinal4Picks(new Set());
     setSemifinalPicks(new Set());
     setWinnerPick(new Set());
@@ -244,14 +213,13 @@ export default function PicksClient({
 
   // ── Save ──────────────────────────────────────────────────────────────────
   async function save() {
-    if (!anyEditable) return;
+    if (locked) return;
     setSaving(true);
     setError(null);
     setSaved(false);
     const picks: Array<{ round: string; teamCode: string; groupId?: string }> = [];
     for (const [groupId, teamCode] of Object.entries(groupPicks))
       if (teamCode) picks.push({ round: "GROUP", teamCode, groupId });
-    for (const code of final8Picks)    picks.push({ round: "FINAL8",    teamCode: code });
     for (const code of final4Picks)    picks.push({ round: "FINAL4",    teamCode: code });
     for (const code of semifinalPicks) picks.push({ round: "SEMIFINAL", teamCode: code });
     for (const code of winnerPick)     picks.push({ round: "WINNER",    teamCode: code });
@@ -293,10 +261,10 @@ export default function PicksClient({
         </div>
         <div className="text-right">
           <div className="text-xs uppercase tracking-wide text-neutral-500">
-            {editDeadline === null ? "Entries" : "Editing closes in"}
+            {locked ? "Entries" : "Entries close in"}
           </div>
           <div className="font-mono font-semibold tabular-nums text-sm">
-            {editDeadline === null ? "Closed" : <Countdown deadline={editDeadline} />}
+            {locked ? "Closed" : <Countdown />}
           </div>
         </div>
       </div>
@@ -312,7 +280,7 @@ export default function PicksClient({
             <div key={g} className="rounded-lg border border-neutral-300 dark:border-neutral-700 p-3">
               <div className="text-xs uppercase tracking-wide text-neutral-500 mb-1">Group {g}</div>
               <select
-                disabled={roundLocked.GROUP}
+                disabled={locked}
                 value={groupPicks[g] ?? ""}
                 onChange={(e) => handleGroupChange(g, e.target.value)}
                 className="w-full rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-2 py-2 text-sm"
@@ -326,39 +294,12 @@ export default function PicksClient({
           ))}
         </div>
 
-        {!final4Unlocked && !roundLocked.GROUP && (
+        {!final4Unlocked && (
           <p className="mt-3 text-sm text-neutral-500">
-            Pick all 12 group winners to unlock the Group of 8 and Final 4 sections. ({groupPickCount}/12 done)
+            Pick all 12 group winners to unlock the Final 4 section. ({groupPickCount}/12 done)
           </p>
         )}
       </section>
-
-      {/* ── Group of 8 (unlocks after all 12 groups; standalone) ── */}
-      {final8Unlocked && (
-        <section>
-          <SectionHeader
-            title={FINAL8_META.label}
-            subtitle={`Pick the 8 teams you think reach the quarter-finals, from your group winners. (${FINAL8_META.points} pts each) — ${final8Picks.size}/${PICKS_PER_ROUND.FINAL8} selected.`}
-          />
-          <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
-            {groupWinnerOptions.map((t) => {
-              const selected = final8Picks.has(t.code);
-              const full     = final8Picks.size >= PICKS_PER_ROUND.FINAL8;
-              const disabled = roundLocked.FINAL8 || (!selected && full);
-              return (
-                <TeamButton
-                  key={t.code}
-                  team={t}
-                  selected={selected}
-                  disabled={disabled}
-                  onClick={() => toggleFinal8(t.code)}
-                  showGroup={false}
-                />
-              );
-            })}
-          </div>
-        </section>
-      )}
 
       {/* ── Final 4 (unlocks after all 12 groups) ── */}
       {final4Unlocked && (
@@ -368,10 +309,10 @@ export default function PicksClient({
             subtitle={`Pick 4 semi-finalists from your group winners. (${FINAL4_META.points} pts each) — ${final4Picks.size}/${PICKS_PER_ROUND.FINAL4} selected.`}
           />
           <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
-            {groupWinnerOptions.map((t) => {
+            {final4Options.map((t) => {
               const selected = final4Picks.has(t.code);
               const full     = final4Picks.size >= PICKS_PER_ROUND.FINAL4;
-              const disabled = roundLocked.FINAL4 || (!selected && full);
+              const disabled = locked || (!selected && full);
               return (
                 <TeamButton
                   key={t.code}
@@ -404,7 +345,7 @@ export default function PicksClient({
             {semifinalOptions.map((t) => {
               const selected = semifinalPicks.has(t.code);
               const full     = semifinalPicks.size >= PICKS_PER_ROUND.SEMIFINAL;
-              const disabled = roundLocked.SEMIFINAL || (!selected && full);
+              const disabled = locked || (!selected && full);
               return (
                 <TeamButton
                   key={t.code}
@@ -437,7 +378,7 @@ export default function PicksClient({
             {winnerOptions.map((t) => {
               const selected = winnerPick.has(t.code);
               const full     = winnerPick.size >= PICKS_PER_ROUND.WINNER;
-              const disabled = roundLocked.WINNER || (!selected && full);
+              const disabled = locked || (!selected && full);
               return (
                 <TeamButton
                   key={t.code}
@@ -453,14 +394,14 @@ export default function PicksClient({
         </section>
       )}
 
-      {/* ── Fixed footer — editing controls; shown while at least one round is
-           still editable. Reset (clears everything) only when fully open. ── */}
-      {anyEditable && (
+      {/* ── Fixed footer — editing controls; hidden entirely in read-only /
+           locked views so there's nothing to change ── */}
+      {!locked && (
       <div className="fixed bottom-0 left-0 right-0 z-20 px-4 py-3 bg-white/95 dark:bg-neutral-950/95 border-t border-neutral-200 dark:border-neutral-800">
         <div className="mx-auto max-w-4xl flex flex-wrap items-center justify-between gap-2">
 
           <div className="flex flex-wrap items-center gap-2">
-            {allEditable && (confirmReset ? (
+            {confirmReset && !locked ? (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm text-red-600 dark:text-red-400">Clear all picks?</span>
                 <button
@@ -483,11 +424,12 @@ export default function PicksClient({
               <button
                 type="button"
                 onClick={() => { setConfirmReset(true); setSaved(false); }}
-                className="rounded-md border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 px-3 py-1.5 text-sm hover:bg-red-50 dark:hover:bg-red-900/20"
+                disabled={locked}
+                className="rounded-md border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 px-3 py-1.5 text-sm hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Reset picks
               </button>
-            ))}
+            )}
             {error && <span className="text-sm text-red-600 dark:text-red-400">{error}</span>}
           </div>
 
@@ -506,10 +448,10 @@ export default function PicksClient({
             <button
               type="button"
               onClick={save}
-              disabled={saving || !anyEditable}
+              disabled={saving || locked}
               className="rounded-md bg-[color:var(--color-brand)] text-white px-5 py-2 text-sm font-medium disabled:opacity-60"
             >
-              {saving ? "Saving…" : "Save picks"}
+              {saving ? "Saving…" : locked ? "Locked" : "Save picks"}
             </button>
           </div>
 
@@ -562,9 +504,9 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle: string })
   );
 }
 
-// ── Live countdown to the given editing deadline (epoch ms) ─────────────────────
+// ── Live countdown to the pick deadline (PICKS_LOCK_AT) ─────────────────────────
 // Renders nothing until mounted to avoid a server/client hydration mismatch.
-function Countdown({ deadline }: { deadline: number }) {
+function Countdown() {
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
     // Intentional client-only init after mount (avoids a hydration mismatch).
@@ -576,7 +518,7 @@ function Countdown({ deadline }: { deadline: number }) {
 
   if (now === null) return <span aria-hidden>…</span>;
 
-  const ms = deadline - now;
+  const ms = PICKS_LOCK_AT.getTime() - now;
   if (ms <= 0) return <span>Closed</span>;
 
   const s = Math.floor(ms / 1000);
