@@ -280,10 +280,54 @@ export default async function ArchitecturePage({
           </div>
         </section>
 
+        {/* ── Win probability ───────────────────────────────────────────── */}
+        <section className="mb-12">
+          <h2 className="text-xl font-semibold mb-1">6 · Win probability (leaderboard)</h2>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
+            The leaderboard&apos;s <strong>Win %</strong> column is each player&apos;s
+            estimated chance of finishing 1st, from a Monte-Carlo simulation of the
+            rest of the tournament. It appears only once a live knockout bracket is
+            available.
+          </p>
+          <ol className="text-sm space-y-2 text-neutral-700 dark:text-neutral-300 list-decimal pl-5 mb-4">
+            <li>
+              <strong>Bracket</strong> — <code>lib/tournament-bracket.ts</code> pulls
+              the knockout matches from football-data.org (<code>FOOTBALL_API_KEY</code>),
+              resolves each team to our codes, and builds the current bracket: the
+              earliest undecided round is the <em>frontier</em>; winners of adjacent
+              matches meet in the next round up to the final. Finished semifinals /
+              final lock in milestones for already-eliminated teams.
+            </li>
+            <li>
+              <strong>Match model</strong> — <code>data/ratings.ts</code> holds a
+              FIFA/Elo rating per team; <code>eloWinProb</code> converts a rating gap
+              into a single-match win probability (logistic on the difference — a
+              ~100-point edge ≈ 64%).
+            </li>
+            <li>
+              <strong>Simulate</strong> — <code>lib/win-probability.ts</code> plays the
+              undecided matches ~20,000 times. Each trial yields a full set of team
+              results, fed through the same <code>scoreAllPicks</code> the leaderboard
+              uses, then the players are ranked (a tie for 1st splits the credit).
+            </li>
+            <li>
+              <strong>Win %</strong> — the share of trials each player finished 1st.
+              Computed server-side and cached (~10 min result, ~15 min bracket fetch)
+              so a page view never re-runs the simulation or re-hits the API. An
+              already-decided bracket skips the randomness — one deterministic pass.
+            </li>
+          </ol>
+          <p className="text-xs text-neutral-500">
+            Pure and unit-tested: the engine and bracket parser are covered by fixtures,
+            including a frozen real-API snapshot. With no <code>FOOTBALL_API_KEY</code>
+            or no knockout data, the column simply hides.
+          </p>
+        </section>
+
         {/* ── Cross-cutting concerns ─────────────────────────────────────── */}
         <section className="mb-12 grid gap-4 md:grid-cols-2">
           <div>
-            <h2 className="text-xl font-semibold mb-3">6 · Security &amp; sessions</h2>
+            <h2 className="text-xl font-semibold mb-3">7 · Security &amp; sessions</h2>
             <ul className="text-sm space-y-2 text-neutral-700 dark:text-neutral-300 list-disc pl-5">
               <li>No passwords. Identity = the <code>wcpool_pid</code> cookie (httpOnly, SameSite=Lax).</li>
               <li>The cookie alone grants nothing: every API route verifies the player belongs to the pool named in the URL.</li>
@@ -293,7 +337,7 @@ export default async function ArchitecturePage({
             </ul>
           </div>
           <div>
-            <h2 className="text-xl font-semibold mb-3">7 · Connection &amp; build notes</h2>
+            <h2 className="text-xl font-semibold mb-3">8 · Connection &amp; build notes</h2>
             <ul className="text-sm space-y-2 text-neutral-700 dark:text-neutral-300 list-disc pl-5">
               <li><code>DATABASE_URL</code> is the pooled (PgBouncer) Neon URL for app queries.</li>
               <li><code>DATABASE_URL_UNPOOLED</code> (<code>directUrl</code>) is used for migrations.</li>
@@ -307,7 +351,7 @@ export default async function ArchitecturePage({
 
         {/* ── Backups & durability ──────────────────────────────────────── */}
         <section className="mb-12">
-          <h2 className="text-xl font-semibold mb-3">8 · Backups &amp; durability</h2>
+          <h2 className="text-xl font-semibold mb-3">9 · Backups &amp; durability</h2>
           <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
             Pools, players, and picks exist only in Neon — the seed{" "}
             <code>Team</code> rows regenerate from <code>data/worldcup2026.ts</code>,
@@ -337,7 +381,7 @@ export default async function ArchitecturePage({
 
         {/* ── Directory map ──────────────────────────────────────────────── */}
         <section className="mb-4">
-          <h2 className="text-xl font-semibold mb-3">9 · Repository map</h2>
+          <h2 className="text-xl font-semibold mb-3">10 · Repository map</h2>
           <pre className="text-xs leading-relaxed overflow-x-auto rounded-xl border border-neutral-200 dark:border-neutral-800 p-4 bg-neutral-50 dark:bg-neutral-900">
 {`app/
   layout.tsx                       root layout · mounts <Analytics/>
@@ -345,7 +389,7 @@ export default async function ArchitecturePage({
   pools/[code]/
     page.tsx                       pool dashboard
     picks/  page.tsx · PicksClient  progressive bracket picker
-    leaderboard/page.tsx           scored standings (server-computed)
+    leaderboard/page.tsx           scored standings + win % (server-computed)
   how-it-works/ · architecture/    static reference pages
   admin/  page.tsx · AdminClient    results entry (token-gated)
   api/
@@ -358,7 +402,8 @@ components/   Navigation (client · active-link) · HeroBanner · ThemeToggle
 lib/          db.ts (Prisma singleton) · session.ts (cookie)
               scoring.ts (pure, cumulative) · lock.ts (pick deadline)
               results.ts (map providers + derive fetched results)
-data/         worldcup2026.ts (48 teams, rounds, points)
+              win-probability.ts · tournament-bracket.ts (Elo Monte-Carlo)
+data/         worldcup2026.ts (48 teams, rounds, points) · ratings.ts (Elo)
 prisma/       schema.prisma · seed.ts
 scripts/      backup-db.sh · restore-db.sh · db-url.sh
 .github/      workflows/backup.yml (scheduled pg_dump)
