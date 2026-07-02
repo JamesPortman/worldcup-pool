@@ -4,9 +4,17 @@ import Navigation from "@/components/Navigation";
 import HeroBanner from "@/components/HeroBanner";
 import { prisma } from "@/lib/db";
 import { scoreAllPicks } from "@/lib/scoring";
+import { getWinPercents } from "@/lib/tournament-bracket";
 import { ROUNDS, type RoundKey } from "@/data/worldcup2026";
 
 export const dynamic = "force-dynamic";
+
+// "12.3%", "<0.1%", or "—" when the model has no live bracket to work from.
+function formatPct(v: number | null): string {
+  if (v === null) return "—";
+  if (v > 0 && v < 0.1) return "<0.1%";
+  return `${v.toFixed(1)}%`;
+}
 
 export default async function LeaderboardPage({
   params,
@@ -24,6 +32,10 @@ export default async function LeaderboardPage({
 
   const teams = await prisma.team.findMany();
   const teamsByCode = Object.fromEntries(teams.map((t) => [t.code, t]));
+
+  // Simulated chance of finishing 1st (null if no live bracket is available).
+  const winPct = await getWinPercents(pool.joinCode, pool.players, teams);
+  const showWin = winPct !== null;
 
   const rows = pool.players.map((p) => {
     const { total, byRound } = scoreAllPicks(p.picks, teamsByCode);
@@ -50,6 +62,7 @@ export default async function LeaderboardPage({
       final4Teams,
       semifinalCodes,
       winnerCode,
+      winPct: winPct?.[p.id] ?? null,
     };
   });
   // Rank by score (high → low); break ties alphabetically by player name.
@@ -74,6 +87,9 @@ export default async function LeaderboardPage({
                 <th className="py-2 pr-3">#</th>
                 <th className="py-2 pr-3">Player</th>
                 <th className="py-2 px-2 text-right font-semibold">Total</th>
+                {showWin && (
+                  <th className="py-2 px-2 text-right whitespace-nowrap font-semibold">Win %</th>
+                )}
                 {ROUNDS.map((r) => (
                   <th key={r.key} className="py-2 px-2 text-right whitespace-nowrap">
                     {r.key === "GROUP" ? "Group Wins" : r.label}
@@ -84,7 +100,7 @@ export default async function LeaderboardPage({
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td className="py-4 text-neutral-500" colSpan={ROUNDS.length + 3}>
+                  <td className="py-4 text-neutral-500" colSpan={ROUNDS.length + 3 + (showWin ? 1 : 0)}>
                     No players yet.
                   </td>
                 </tr>
@@ -130,6 +146,11 @@ export default async function LeaderboardPage({
                   <td className="py-2 px-2 text-right font-semibold tabular-nums align-top">
                     {row.total}
                   </td>
+                  {showWin && (
+                    <td className="py-2 px-2 text-right tabular-nums align-top font-medium text-[color:var(--color-brand)]">
+                      {formatPct(row.winPct)}
+                    </td>
+                  )}
 
                   {ROUNDS.map((r) => (
                     <td key={r.key} className="py-2 px-2 text-right tabular-nums align-top">
@@ -141,6 +162,13 @@ export default async function LeaderboardPage({
             </tbody>
           </table>
         </div>
+
+        {showWin && (
+          <p className="mt-3 text-xs text-neutral-500">
+            Win % is a Monte-Carlo estimate of each player&apos;s chance of finishing 1st — simulating
+            the remaining matches from FIFA/Elo team ratings and the current knockout bracket.
+          </p>
+        )}
       </main>
     </>
   );
