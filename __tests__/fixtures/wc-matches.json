@@ -1,0 +1,549 @@
+{
+  "note": "Trimmed real football-data.org /v4/competitions/WC/matches snapshot (Round-of-32 stage) \u2014 regression fixture for lib/tournament-bracket.",
+  "matches": [
+    {
+      "id": 537327,
+      "stage": "GROUP_STAGE",
+      "status": "FINISHED",
+      "homeTeam": {
+        "name": "Mexico",
+        "tla": "MEX"
+      },
+      "awayTeam": {
+        "name": "South Africa",
+        "tla": "RSA"
+      },
+      "score": {
+        "winner": "HOME_TEAM"
+      }
+    },
+    {
+      "id": 537328,
+      "stage": "GROUP_STAGE",
+      "status": "FINISHED",
+      "homeTeam": {
+        "name": "South Korea",
+        "tla": "KOR"
+      },
+      "awayTeam": {
+        "name": "Czechia",
+        "tla": "CZE"
+      },
+      "score": {
+        "winner": "HOME_TEAM"
+      }
+    },
+    {
+      "id": 537417,
+      "stage": "LAST_32",
+      "status": "FINISHED",
+      "homeTeam": {
+        "name": "South Africa",
+        "tla": "RSA"
+      },
+      "awayTeam": {
+        "name": "Canada",
+        "tla": "CAN"
+      },
+      "score": {
+        "winner": "AWAY_TEAM"
+      }
+    },
+    {
+      "id": 537423,
+      "stage": "LAST_32",
+      "status": "FINISHED",
+      "homeTeam": {
+        "name": "Brazil",
+        "tla": "BRA"
+      },
+      "awayTeam": {
+        "name": "Japan",
+        "tla": "JPN"
+      },
+      "score": {
+        "winner": "HOME_TEAM"
+      }
+    },
+    {
+      "id": 537415,
+      "stage": "LAST_32",
+      "status": "FINISHED",
+      "homeTeam": {
+        "name": "Germany",
+        "tla": "GER"
+      },
+      "awayTeam": {
+        "name": "Paraguay",
+        "tla": "PAR"
+      },
+      "score": {
+        "winner": "AWAY_TEAM"
+      }
+    },
+    {
+      "id": 537418,
+      "stage": "LAST_32",
+      "status": "FINISHED",
+      "homeTeam": {
+        "name": "Netherlands",
+        "tla": "NED"
+      },
+      "awayTeam": {
+        "name": "Morocco",
+        "tla": "MAR"
+      },
+      "score": {
+        "winner": "AWAY_TEAM"
+      }
+    },
+    {
+      "id": 537424,
+      "stage": "LAST_32",
+      "status": "FINISHED",
+      "homeTeam": {
+        "name": "Ivory Coast",
+        "tla": "CIV"
+      },
+      "awayTeam": {
+        "name": "Norway",
+        "tla": "NOR"
+      },
+      "score": {
+        "winner": "AWAY_TEAM"
+      }
+    },
+    {
+      "id": 537416,
+      "stage": "LAST_32",
+      "status": "FINISHED",
+      "homeTeam": {
+        "name": "France",
+        "tla": "FRA"
+      },
+      "awayTeam": {
+        "name": "Sweden",
+        "tla": "SWE"
+      },
+      "score": {
+        "winner": "HOME_TEAM"
+      }
+    },
+    {
+      "id": 537425,
+      "stage": "LAST_32",
+      "status": "FINISHED",
+      "homeTeam": {
+        "name": "Mexico",
+        "tla": "MEX"
+      },
+      "awayTeam": {
+        "name": "Ecuador",
+        "tla": "ECU"
+      },
+      "score": {
+        "winner": "HOME_TEAM"
+      }
+    },
+    {
+      "id": 537426,
+      "stage": "LAST_32",
+      "status": "FINISHED",
+      "homeTeam": {
+        "name": "England",
+        "tla": "ENG"
+      },
+      "awayTeam": {
+        "name": "Congo DR",
+        "tla": "COD"
+      },
+      "score": {
+        "winner": "HOME_TEAM"
+      }
+    },
+    {
+      "id": 537422,
+      "stage": "LAST_32",
+      "status": "FINISHED",
+      "homeTeam": {
+        "name": "Belgium",
+        "tla": "BEL"
+      },
+      "awayTeam": {
+        "name": "Senegal",
+        "tla": "SEN"
+      },
+      "score": {
+        "winner": "HOME_TEAM"
+      }
+    },
+    {
+      "id": 537421,
+      "stage": "LAST_32",
+      "status": "FINISHED",
+      "homeTeam": {
+        "name": "United States",
+        "tla": "USA"
+      },
+      "awayTeam": {
+        "name": "Bosnia-Herzegovina",
+        "tla": "BIH"
+      },
+      "score": {
+        "winner": "HOME_TEAM"
+      }
+    },
+    {
+      "id": 537420,
+      "stage": "LAST_32",
+      "status": "TIMED",
+      "homeTeam": {
+        "name": "Spain",
+        "tla": "ESP"
+      },
+      "awayTeam": {
+        "name": "Austria",
+        "tla": "AUT"
+      },
+      "score": {
+        "winner": null
+      }
+    },
+    {
+      "id": 537419,
+      "stage": "LAST_32",
+      "status": "TIMED",
+      "homeTeam": {
+        "name": "Portugal",
+        "tla": "POR"
+      },
+      "awayTeam": {
+        "name": "Croatia",
+        "tla": "CRO"
+      },
+      "score": {
+        "winner": null
+      }
+    },
+    {
+      "id": 537429,
+      "stage": "LAST_32",
+      "status": "TIMED",
+      "homeTeam": {
+        "name": "Switzerland",
+        "tla": "SUI"
+      },
+      "awayTeam": {
+        "name": "Algeria",
+        "tla": "ALG"
+      },
+      "score": {
+        "winner": null
+      }
+    },
+    {
+      "id": 537428,
+      "stage": "LAST_32",
+      "status": "TIMED",
+      "homeTeam": {
+        "name": "Australia",
+        "tla": "AUS"
+      },
+      "awayTeam": {
+        "name": "Egypt",
+        "tla": "EGY"
+      },
+      "score": {
+        "winner": null
+      }
+    },
+    {
+      "id": 537427,
+      "stage": "LAST_32",
+      "status": "TIMED",
+      "homeTeam": {
+        "name": "Argentina",
+        "tla": "ARG"
+      },
+      "awayTeam": {
+        "name": "Cape Verde Islands",
+        "tla": "CPV"
+      },
+      "score": {
+        "winner": null
+      }
+    },
+    {
+      "id": 537430,
+      "stage": "LAST_32",
+      "status": "TIMED",
+      "homeTeam": {
+        "name": "Colombia",
+        "tla": "COL"
+      },
+      "awayTeam": {
+        "name": "Ghana",
+        "tla": "GHA"
+      },
+      "score": {
+        "winner": null
+      }
+    },
+    {
+      "id": 537376,
+      "stage": "LAST_16",
+      "status": "TIMED",
+      "homeTeam": {
+        "name": "Canada",
+        "tla": "CAN"
+      },
+      "awayTeam": {
+        "name": "Morocco",
+        "tla": "MAR"
+      },
+      "score": {
+        "winner": null
+      }
+    },
+    {
+      "id": 537375,
+      "stage": "LAST_16",
+      "status": "TIMED",
+      "homeTeam": {
+        "name": "Paraguay",
+        "tla": "PAR"
+      },
+      "awayTeam": {
+        "name": "France",
+        "tla": "FRA"
+      },
+      "score": {
+        "winner": null
+      }
+    },
+    {
+      "id": 537377,
+      "stage": "LAST_16",
+      "status": "TIMED",
+      "homeTeam": {
+        "name": "Brazil",
+        "tla": "BRA"
+      },
+      "awayTeam": {
+        "name": "Norway",
+        "tla": "NOR"
+      },
+      "score": {
+        "winner": null
+      }
+    },
+    {
+      "id": 537378,
+      "stage": "LAST_16",
+      "status": "TIMED",
+      "homeTeam": {
+        "name": "Mexico",
+        "tla": "MEX"
+      },
+      "awayTeam": {
+        "name": "England",
+        "tla": "ENG"
+      },
+      "score": {
+        "winner": null
+      }
+    },
+    {
+      "id": 537379,
+      "stage": "LAST_16",
+      "status": "TIMED",
+      "homeTeam": {
+        "name": null,
+        "tla": null
+      },
+      "awayTeam": {
+        "name": null,
+        "tla": null
+      },
+      "score": {
+        "winner": null
+      }
+    },
+    {
+      "id": 537380,
+      "stage": "LAST_16",
+      "status": "TIMED",
+      "homeTeam": {
+        "name": "United States",
+        "tla": "USA"
+      },
+      "awayTeam": {
+        "name": "Belgium",
+        "tla": "BEL"
+      },
+      "score": {
+        "winner": null
+      }
+    },
+    {
+      "id": 537381,
+      "stage": "LAST_16",
+      "status": "TIMED",
+      "homeTeam": {
+        "name": null,
+        "tla": null
+      },
+      "awayTeam": {
+        "name": null,
+        "tla": null
+      },
+      "score": {
+        "winner": null
+      }
+    },
+    {
+      "id": 537382,
+      "stage": "LAST_16",
+      "status": "TIMED",
+      "homeTeam": {
+        "name": null,
+        "tla": null
+      },
+      "awayTeam": {
+        "name": null,
+        "tla": null
+      },
+      "score": {
+        "winner": null
+      }
+    },
+    {
+      "id": 537383,
+      "stage": "QUARTER_FINALS",
+      "status": "TIMED",
+      "homeTeam": {
+        "name": null,
+        "tla": null
+      },
+      "awayTeam": {
+        "name": null,
+        "tla": null
+      },
+      "score": {
+        "winner": null
+      }
+    },
+    {
+      "id": 537384,
+      "stage": "QUARTER_FINALS",
+      "status": "TIMED",
+      "homeTeam": {
+        "name": null,
+        "tla": null
+      },
+      "awayTeam": {
+        "name": null,
+        "tla": null
+      },
+      "score": {
+        "winner": null
+      }
+    },
+    {
+      "id": 537385,
+      "stage": "QUARTER_FINALS",
+      "status": "TIMED",
+      "homeTeam": {
+        "name": null,
+        "tla": null
+      },
+      "awayTeam": {
+        "name": null,
+        "tla": null
+      },
+      "score": {
+        "winner": null
+      }
+    },
+    {
+      "id": 537386,
+      "stage": "QUARTER_FINALS",
+      "status": "TIMED",
+      "homeTeam": {
+        "name": null,
+        "tla": null
+      },
+      "awayTeam": {
+        "name": null,
+        "tla": null
+      },
+      "score": {
+        "winner": null
+      }
+    },
+    {
+      "id": 537387,
+      "stage": "SEMI_FINALS",
+      "status": "TIMED",
+      "homeTeam": {
+        "name": null,
+        "tla": null
+      },
+      "awayTeam": {
+        "name": null,
+        "tla": null
+      },
+      "score": {
+        "winner": null
+      }
+    },
+    {
+      "id": 537388,
+      "stage": "SEMI_FINALS",
+      "status": "TIMED",
+      "homeTeam": {
+        "name": null,
+        "tla": null
+      },
+      "awayTeam": {
+        "name": null,
+        "tla": null
+      },
+      "score": {
+        "winner": null
+      }
+    },
+    {
+      "id": 537389,
+      "stage": "THIRD_PLACE",
+      "status": "TIMED",
+      "homeTeam": {
+        "name": null,
+        "tla": null
+      },
+      "awayTeam": {
+        "name": null,
+        "tla": null
+      },
+      "score": {
+        "winner": null
+      }
+    },
+    {
+      "id": 537390,
+      "stage": "FINAL",
+      "status": "TIMED",
+      "homeTeam": {
+        "name": null,
+        "tla": null
+      },
+      "awayTeam": {
+        "name": null,
+        "tla": null
+      },
+      "score": {
+        "winner": null
+      }
+    }
+  ]
+}
