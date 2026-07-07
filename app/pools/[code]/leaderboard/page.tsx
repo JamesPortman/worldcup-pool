@@ -1,20 +1,12 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import Navigation from "@/components/Navigation";
 import HeroBanner from "@/components/HeroBanner";
 import { prisma } from "@/lib/db";
 import { scoreAllPicks } from "@/lib/scoring";
 import { getWinPercents } from "@/lib/tournament-bracket";
-import { ROUNDS, type RoundKey } from "@/data/worldcup2026";
+import LeaderboardClient, { type LeaderboardRow } from "./LeaderboardClient";
 
 export const dynamic = "force-dynamic";
-
-// "12.3%", "<0.1%", or "—" when the model has no live bracket to work from.
-function formatPct(v: number | null): string {
-  if (v === null) return "—";
-  if (v > 0 && v < 0.1) return "<0.1%";
-  return `${v.toFixed(1)}%`;
-}
 
 export default async function LeaderboardPage({
   params,
@@ -37,22 +29,22 @@ export default async function LeaderboardPage({
   const winPct = await getWinPercents(pool.joinCode, pool.players, teams);
   const showWin = winPct !== null;
 
-  const rows = pool.players.map((p) => {
+  // Serializable rows for the client table (it handles sorting by Total / Win %).
+  const rows: LeaderboardRow[] = pool.players.map((p) => {
     const { total, byRound } = scoreAllPicks(p.picks, teamsByCode);
 
-    // Build the Final 4 picks summary for display
     const final4Teams = p.picks
       .filter((pk) => pk.round === "FINAL4")
       .map((pk) => teamsByCode[pk.teamCode])
       .filter(Boolean)
-      .sort((a, b) => a.name.localeCompare(b.name));
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((t) => ({ code: t.code, name: t.name }));
 
-    const semifinalCodes = new Set(
-      p.picks.filter((pk) => pk.round === "SEMIFINAL").map((pk) => pk.teamCode),
-    );
+    const semifinalCodes = p.picks
+      .filter((pk) => pk.round === "SEMIFINAL")
+      .map((pk) => pk.teamCode);
 
-    const winnerCode =
-      p.picks.find((pk) => pk.round === "WINNER")?.teamCode ?? null;
+    const winnerCode = p.picks.find((pk) => pk.round === "WINNER")?.teamCode ?? null;
 
     return {
       id: p.id,
@@ -65,10 +57,6 @@ export default async function LeaderboardPage({
       winPct: winPct?.[p.id] ?? null,
     };
   });
-  // Rank by score (high → low); break ties alphabetically by player name.
-  // Before the tournament starts everyone is on 0, so this shows the roster
-  // in clean alphabetical order.
-  rows.sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
 
   return (
     <>
@@ -77,91 +65,11 @@ export default async function LeaderboardPage({
       <main className="mx-auto max-w-4xl px-4 py-6 sm:py-10">
         <h1 className="text-2xl sm:text-3xl font-bold">Leaderboard</h1>
         <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-          Updated as the admin enters real-world results.
+          Updated as the admin enters real-world results. Tap <strong>Total</strong>
+          {showWin ? " or Win %" : ""} to re-sort.
         </p>
 
-        <div className="mt-6 overflow-x-auto -mx-4 px-4">
-          <table className="w-full text-sm min-w-[360px]">
-            <thead>
-              <tr className="text-left border-b border-neutral-300 dark:border-neutral-700">
-                <th className="py-2 pr-3">#</th>
-                <th className="py-2 pr-3">Player</th>
-                <th className="py-2 px-2 text-right font-semibold">Total</th>
-                {showWin && (
-                  <th className="py-2 px-2 text-right whitespace-nowrap font-semibold">Win %</th>
-                )}
-                {ROUNDS.map((r) => (
-                  <th key={r.key} className="py-2 px-2 text-right whitespace-nowrap">
-                    {r.key === "GROUP" ? "Group Wins" : r.label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 && (
-                <tr>
-                  <td className="py-4 text-neutral-500" colSpan={ROUNDS.length + 3 + (showWin ? 1 : 0)}>
-                    No players yet.
-                  </td>
-                </tr>
-              )}
-              {rows.map((row, idx) => (
-                <tr
-                  key={row.id}
-                  className={`border-b border-neutral-200 dark:border-neutral-800 ${
-                    idx < 3 ? "bg-yellow-100 dark:bg-yellow-900/30" : ""
-                  }`}
-                >
-                  <td className="py-2 pr-3 text-neutral-500 align-top">{idx + 1}</td>
-
-                  {/* Player name + Final 4 picks summary */}
-                  <td className="py-2 pr-3 align-top">
-                    <Link
-                      href={`/pools/${pool.joinCode}/picks?player=${row.id}`}
-                      className="font-medium hover:underline text-[color:var(--color-brand)]"
-                    >
-                      {row.name}
-                    </Link>
-
-                    {row.final4Teams.length > 0 && (
-                      <div className="text-xs mt-0.5 text-neutral-500 leading-relaxed">
-                        [
-                        {row.final4Teams.map((t, i) => (
-                          <span key={t.code}>
-                            {i > 0 && ", "}
-                            {row.winnerCode === t.code ? (
-                              <strong className="text-red-600 dark:text-red-400">{t.name}</strong>
-                            ) : row.semifinalCodes.has(t.code) ? (
-                              <strong className="text-neutral-700 dark:text-neutral-300">{t.name}</strong>
-                            ) : (
-                              t.name
-                            )}
-                          </span>
-                        ))}
-                        ]
-                      </div>
-                    )}
-                  </td>
-
-                  <td className="py-2 px-2 text-right font-semibold tabular-nums align-top">
-                    {row.total}
-                  </td>
-                  {showWin && (
-                    <td className="py-2 px-2 text-right tabular-nums align-top font-medium text-[color:var(--color-brand)]">
-                      {formatPct(row.winPct)}
-                    </td>
-                  )}
-
-                  {ROUNDS.map((r) => (
-                    <td key={r.key} className="py-2 px-2 text-right tabular-nums align-top">
-                      {row.byRound[r.key as RoundKey]}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <LeaderboardClient rows={rows} poolCode={pool.joinCode} showWin={showWin} />
 
         {showWin && (
           <p className="mt-3 text-xs text-neutral-500">
