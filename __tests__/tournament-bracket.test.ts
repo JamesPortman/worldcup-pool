@@ -6,7 +6,7 @@ const resolve = (_name: string, tla?: string | null) => tla ?? null;
 
 function m(
   id: number, stage: string, status: string,
-  home: string, away: string, winner?: "HOME_TEAM" | "AWAY_TEAM",
+  home: string | null, away: string | null, winner?: "HOME_TEAM" | "AWAY_TEAM",
 ): ProviderMatch {
   return {
     id, stage, status,
@@ -48,6 +48,30 @@ describe("buildKnockoutState", () => {
     expect(state.settledReached).toEqual({ ARG: "FINAL4", FRA: "FINAL4", BRA: "FINAL4", ESP: "FINAL4" });
     expect(state.frontier).toEqual([{ a: "ARG", b: "ESP", winner: null }]);
     expect(state.settledChampion).toBeNull();
+  });
+
+  it("rebuilds a half-populated round from the previous round's winners", () => {
+    // Both semifinals are decided (Spain and Argentina through), but the provider
+    // hasn't back-filled the final's away slot yet — it still reads "ESP vs TBD".
+    // Simulating that verbatim would hand Spain a walkover and rob Argentina of
+    // its finalist credit, so the final must be rebuilt as ESP vs ARG.
+    const matches = [
+      m(1, "SEMI_FINALS", "FINISHED", "FRA", "ESP", "AWAY_TEAM"), // ESP through
+      m(2, "SEMI_FINALS", "FINISHED", "ENG", "ARG", "AWAY_TEAM"), // ARG through
+      m(3, "FINAL", "TIMED", "ESP", null),                        // away slot not filled
+    ];
+    const state = buildKnockoutState(matches, resolve)!;
+    expect(state.frontier).toEqual([{ a: "ESP", b: "ARG", winner: null }]);
+    // Both finalists must still be credited with reaching the last 4.
+    expect(state.settledReached).toEqual({ FRA: "FINAL4", ESP: "FINAL4", ENG: "FINAL4", ARG: "FINAL4" });
+    expect(state.settledChampion).toBeNull();
+  });
+
+  it("returns null rather than guessing when a round cannot be resolved", () => {
+    // First knockout round is half-drawn and there's no earlier round to rebuild
+    // from — better no Win % column than a confidently wrong one.
+    const matches = [m(1, "LAST_32", "TIMED", "ESP", null)];
+    expect(buildKnockoutState(matches, resolve)).toBeNull();
   });
 
   it("reports an empty frontier and a champion once the final is finished", () => {

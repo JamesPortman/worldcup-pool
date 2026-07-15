@@ -56,17 +56,45 @@ export function buildKnockoutState(matches: ProviderMatch[], resolve: Resolve): 
     }
   }
 
+  const stageMatches = (stage: string) =>
+    knockout.filter((m) => m.stage.toUpperCase() === stage).sort((a, b) => a.id - b.id);
+
   // Frontier = earliest stage that has matches and isn't fully finished.
   let frontier: BracketMatch[] = [];
-  for (const stage of KNOCKOUT_ORDER) {
-    const inStage = knockout
-      .filter((m) => m.stage.toUpperCase() === stage)
-      .sort((a, b) => a.id - b.id);
+  let frontierIdx = -1;
+  for (let i = 0; i < KNOCKOUT_ORDER.length; i++) {
+    const inStage = stageMatches(KNOCKOUT_ORDER[i]);
     if (inStage.length === 0) continue;
     if (inStage.every((m) => m.status === "FINISHED")) continue; // round done → look later
     frontier = inStage.map((m) => ({ a: code(m.homeTeam), b: code(m.awayTeam), winner: winnerCode(m) }));
+    frontierIdx = i;
     break;
   }
+
+  // The provider only back-fills a round's teams once the previous round is
+  // official, so the frontier can arrive half-empty (e.g. "Spain vs TBD" for the
+  // final while the other finalist is already decided). Simulating that would
+  // treat the missing side as a walkover and hand the known team a free win, so
+  // rebuild the round from the previous round's winners instead. The frontier is
+  // by definition the earliest unfinished round, so earlier rounds are complete
+  // and their winners are known.
+  if (frontierIdx > 0 && frontier.some((m) => !m.a || !m.b)) {
+    for (let i = frontierIdx - 1; i >= 0; i--) {
+      const prev = stageMatches(KNOCKOUT_ORDER[i]);
+      if (prev.length === 0) continue;
+      const winners = prev.map(winnerCode);
+      if (!prev.every((m) => m.status === "FINISHED") || winners.some((w) => !w)) break;
+      const rebuilt: BracketMatch[] = [];
+      for (let j = 0; j < winners.length; j += 2) {
+        rebuilt.push({ a: winners[j], b: winners[j + 1] ?? null, winner: null });
+      }
+      frontier = rebuilt;
+      break;
+    }
+  }
+
+  // Still unresolved → don't guess. No column beats a confidently wrong one.
+  if (frontier.some((m) => !m.a || !m.b)) return null;
 
   return { frontier, settledReached, settledChampion };
 }
