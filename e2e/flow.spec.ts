@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { BASE_PATH } from "../lib/site";
 
 // Full-stack flow against a real database (UI → API → Postgres → UI).
 // Runs in CI against an ephemeral Postgres service; locally it needs a throwaway
@@ -10,7 +11,7 @@ test.describe("create-pool flow (DB-backed)", () => {
     const displayName = `E2E ${stamp}`;
 
     // 1. Create a pool from the home page.
-    await page.goto("/");
+    await page.goto(`${BASE_PATH}/`);
     await page.getByRole("button", { name: /create a pool/i }).click();
     await page.getByLabel(/pool name/i).fill(poolName);
     await page.getByLabel(/your display name/i).fill(displayName);

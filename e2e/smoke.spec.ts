@@ -1,11 +1,12 @@
 import { test, expect } from "@playwright/test";
+import { BASE_PATH } from "../lib/site";
 
 // These hit only the public pages that never touch Prisma/Neon, so they pass
 // against a plain `next dev` with no database configured.
 
 test.describe("home page", () => {
   test("shows the hero banner and create/join controls", async ({ page }) => {
-    await page.goto("/");
+    await page.goto(`${BASE_PATH}/`);
     await expect(
       page.getByRole("heading", { name: /2026 FIFA World Cup Pool/i }),
     ).toBeVisible();
@@ -14,7 +15,7 @@ test.describe("home page", () => {
   });
 
   test("exposes How it works and Architecture in the nav", async ({ page }) => {
-    await page.goto("/");
+    await page.goto(`${BASE_PATH}/`);
     await expect(page.getByRole("link", { name: /how it works/i })).toHaveAttribute(
       "href",
       "/how-it-works",
@@ -28,7 +29,7 @@ test.describe("home page", () => {
 
 test.describe("how it works page", () => {
   test("renders the scoring explanation", async ({ page }) => {
-    await page.goto("/how-it-works");
+    await page.goto(`${BASE_PATH}/how-it-works`);
     await expect(page.getByRole("heading", { name: /how it works/i })).toBeVisible();
     await expect(page.getByText(/Group Winners/i).first()).toBeVisible();
     await expect(page.getByText(/Winner/).first()).toBeVisible();
@@ -37,7 +38,7 @@ test.describe("how it works page", () => {
 
 test.describe("architecture page", () => {
   test("renders the architecture overview for developers", async ({ page }) => {
-    await page.goto("/architecture");
+    await page.goto(`${BASE_PATH}/architecture`);
     await expect(
       page.getByRole("heading", { name: /architecture/i }).first(),
     ).toBeVisible();

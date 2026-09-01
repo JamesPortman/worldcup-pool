@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { BASE_PATH } from "../lib/site";
 
 // Admin dashboard + locked-pool behaviour against a real database
 // (UI → API → Postgres → UI). The /admin page renders nothing sensitive until
@@ -13,7 +14,7 @@ test.describe("admin dashboard (DB-backed)", () => {
     const poolName = `Admin E2E ${stamp}`;
     const displayName = `Admin ${stamp}`;
 
-    await page.goto("/");
+    await page.goto(`${BASE_PATH}/`);
     await page.getByRole("button", { name: /create a pool/i }).click();
     await page.getByLabel(/pool name/i).fill(poolName);
     await page.getByLabel(/your display name/i).fill(displayName);
@@ -22,7 +23,7 @@ test.describe("admin dashboard (DB-backed)", () => {
     const code = page.url().match(/\/pools\/([A-Z0-9]{6})$/)![1];
 
     // 1. /admin leaks nothing before the token is verified.
-    await page.goto("/admin");
+    await page.goto(`${BASE_PATH}/admin`);
     await expect(page.getByLabel(/admin token/i)).toBeVisible();
     await expect(page.getByText(poolName)).toHaveCount(0);
 
@@ -45,11 +46,11 @@ test.describe("admin dashboard (DB-backed)", () => {
     await expect(row.getByRole("button", { name: /^unlock picks$/i })).toBeVisible();
 
     // 5. The creator can still VIEW their picks, but the page is now read-only.
-    await page.goto(`/pools/${code}/picks`);
+    await page.goto(`${BASE_PATH}/pools/${code}/picks`);
     await expect(page.getByText(/picks are locked/i)).toBeVisible();
 
     // 6. The leaderboard remains viewable while locked.
-    await page.goto(`/pools/${code}/leaderboard`);
+    await page.goto(`${BASE_PATH}/pools/${code}/leaderboard`);
     await expect(page.getByText(displayName)).toBeVisible();
   });
 });

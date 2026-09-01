@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { groups } from "@/data/worldcup2026";
 import type { ProposedResult } from "@/lib/results";
+import { apiUrl } from "@/lib/site";
 
 interface TeamRow {
   code: string;
@@ -103,7 +104,7 @@ export default function AdminClient() {
     setBusy(true);
     setMsg(null);
     try {
-      const res = await fetch("/api/admin/data", {
+      const res = await fetch(apiUrl(`/api/admin/data`), {
         method: "POST",
         headers: { "x-admin-token": token },
       });
@@ -124,7 +125,7 @@ export default function AdminClient() {
 
   async function updateTeam(code: string, patch: Partial<TeamRow>) {
     setMsg(null);
-    const res = await fetch("/api/admin/results", {
+    const res = await fetch(apiUrl(`/api/admin/results`), {
       method: "POST",
       headers: { "content-type": "application/json", "x-admin-token": token },
       body: JSON.stringify({ kind: "team", code, patch }),
@@ -143,7 +144,7 @@ export default function AdminClient() {
     setProposed(null);
     setUnmapped([]);
     try {
-      const res = await fetch("/api/admin/fetch-results", {
+      const res = await fetch(apiUrl(`/api/admin/fetch-results`), {
         method: "POST",
         headers: { "x-admin-token": token },
       });
@@ -165,7 +166,7 @@ export default function AdminClient() {
     setMsg(null);
     let applied = 0;
     for (const p of proposedChanges) {
-      const res = await fetch("/api/admin/results", {
+      const res = await fetch(apiUrl(`/api/admin/results`), {
         method: "POST",
         headers: { "content-type": "application/json", "x-admin-token": token },
         body: JSON.stringify({
@@ -193,7 +194,7 @@ export default function AdminClient() {
 
   async function togglePoolLock(id: string, locked: boolean) {
     setMsg(null);
-    const res = await fetch("/api/admin/results", {
+    const res = await fetch(apiUrl(`/api/admin/results`), {
       method: "POST",
       headers: { "content-type": "application/json", "x-admin-token": token },
       body: JSON.stringify({ kind: "pool", id, patch: { locked } }),
@@ -207,7 +208,7 @@ export default function AdminClient() {
   // Permanently removes a player and their picks (Pick cascades in the DB).
   async function deletePlayer(poolId: string, playerId: string, name: string) {
     setMsg(null);
-    const res = await fetch(`/api/admin/players/${playerId}`, {
+    const res = await fetch(apiUrl(`/api/admin/players/${playerId}`), {
       method: "DELETE",
       headers: { "x-admin-token": token },
     });
