@@ -18,11 +18,11 @@ test.describe("home page", () => {
     await page.goto(`${BASE_PATH}/`);
     await expect(page.getByRole("link", { name: /how it works/i })).toHaveAttribute(
       "href",
-      "/how-it-works",
+      `${BASE_PATH}/how-it-works`,
     );
     await expect(page.getByRole("link", { name: /architecture/i })).toHaveAttribute(
       "href",
-      "/architecture",
+      `${BASE_PATH}/architecture`,
     );
   });
 });

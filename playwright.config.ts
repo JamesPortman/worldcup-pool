@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { BASE_PATH } from "./lib/site";
 
 // End-to-end smoke tests for the public, no-database pages (home, how-it-works,
 // architecture) plus navigation wiring. These never hit Prisma/Neon, so they
@@ -14,6 +15,8 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: "list",
   use: {
+    // Origin only. Specs navigate with absolute paths that already carry BASE_PATH;
+    // a baseURL with a path would be discarded when resolving those.
     baseURL: "http://localhost:3000",
     trace: "on-first-retry",
   },
@@ -25,7 +28,10 @@ export default defineConfig({
   ],
   webServer: {
     command: "npm run dev",
-    url: "http://localhost:3000",
+    // The readiness probe has to hit a page that exists. The app is mounted at
+    // BASE_PATH, so the bare root 404s and Playwright would wait out its timeout
+    // without ever starting a test.
+    url: `http://localhost:3000${BASE_PATH}`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },
