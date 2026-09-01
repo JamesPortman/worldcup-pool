@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import AdminClient from "@/app/admin/AdminClient";
+import { apiUrl } from "@/lib/site";
 
 const teams = [
   { code: "MEX", name: "Mexico", group: "A", reachedRound: null, wonGroup: false, isChampion: false },
@@ -55,7 +56,7 @@ describe("AdminClient — token gate", () => {
     fireEvent.click(screen.getByRole("button", { name: /unlock/i }));
 
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/admin/data",
+      apiUrl("/api/admin/data"),
       expect.objectContaining({
         method: "POST",
         headers: { "x-admin-token": "secret" },
@@ -95,8 +96,8 @@ describe("AdminClient — token gate", () => {
 
   it("removes a player via a two-step confirm", async () => {
     const fetchMock = mockFetchByUrl((url) => {
-      if (url === "/api/admin/data") return { ok: true, body: { teams, pools } };
-      if (url.startsWith("/api/admin/players/")) return { ok: true, body: { ok: true } };
+      if (url === apiUrl("/api/admin/data")) return { ok: true, body: { teams, pools } };
+      if (url.startsWith(apiUrl("/api/admin/players/"))) return { ok: true, body: { ok: true } };
       return { ok: false, body: {} };
     });
     render(<AdminClient />);
@@ -115,7 +116,7 @@ describe("AdminClient — token gate", () => {
     await waitFor(() => expect(screen.queryByText("Alice")).toBeNull());
     expect(screen.getByText("Bob")).toBeInTheDocument(); // others untouched
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/admin/players/pl1",
+      apiUrl("/api/admin/players/pl1"),
       expect.objectContaining({ method: "DELETE", headers: { "x-admin-token": "secret" } }),
     );
   });
@@ -135,9 +136,9 @@ describe("AdminClient — fetch & apply results", () => {
     // MEX is stored with no result; the API proposes it as a group winner — a real change.
     const proposed = [{ code: "MEX", name: "Mexico", wonGroup: true, reachedRound: null, isChampion: false }];
     const fetchMock = unlockWith((url) => {
-      if (url === "/api/admin/data") return { ok: true, body: { teams, pools } };
-      if (url === "/api/admin/fetch-results") return { ok: true, body: { proposed, unmapped: [] } };
-      if (url === "/api/admin/results") return { ok: true, body: { ok: true } };
+      if (url === apiUrl("/api/admin/data")) return { ok: true, body: { teams, pools } };
+      if (url === apiUrl("/api/admin/fetch-results")) return { ok: true, body: { proposed, unmapped: [] } };
+      if (url === apiUrl("/api/admin/results")) return { ok: true, body: { ok: true } };
       return { ok: false, body: {} };
     });
 
@@ -150,12 +151,12 @@ describe("AdminClient — fetch & apply results", () => {
     expect(within(panel).getByText(/group winner/i)).toBeInTheDocument();
 
     // Human-in-the-loop: nothing is written until the admin confirms.
-    expect(fetchMock).not.toHaveBeenCalledWith("/api/admin/results", expect.anything());
+    expect(fetchMock).not.toHaveBeenCalledWith(apiUrl("/api/admin/results"), expect.anything());
 
     fireEvent.click(screen.getByRole("button", { name: /apply 1 change/i }));
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/admin/results",
+        apiUrl("/api/admin/results"),
         expect.objectContaining({
           method: "POST",
           headers: expect.objectContaining({ "x-admin-token": "secret" }),
@@ -169,8 +170,8 @@ describe("AdminClient — fetch & apply results", () => {
     // KOR is already stored as wonGroup + FINAL4, so this proposal is a no-op diff.
     const proposed = [{ code: "KOR", name: "South Korea", wonGroup: true, reachedRound: "FINAL4", isChampion: false }];
     const fetchMock = unlockWith((url) => {
-      if (url === "/api/admin/data") return { ok: true, body: { teams, pools } };
-      if (url === "/api/admin/fetch-results") return { ok: true, body: { proposed, unmapped: ["Wakanda"] } };
+      if (url === apiUrl("/api/admin/data")) return { ok: true, body: { teams, pools } };
+      if (url === apiUrl("/api/admin/fetch-results")) return { ok: true, body: { proposed, unmapped: ["Wakanda"] } };
       return { ok: false, body: {} };
     });
 
@@ -180,6 +181,6 @@ describe("AdminClient — fetch & apply results", () => {
     expect(screen.queryByRole("button", { name: /^apply/i })).toBeNull(); // no write offered
     expect(screen.getByText(/couldn't match 1 team/i)).toBeInTheDocument();
     expect(screen.getByText(/Wakanda/)).toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalledWith("/api/admin/results", expect.anything());
+    expect(fetchMock).not.toHaveBeenCalledWith(apiUrl("/api/admin/results"), expect.anything());
   });
 });

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { apiUrl } from "@/lib/site";
 
 export default function HomeClient() {
   const router = useRouter();
@@ -22,7 +23,7 @@ export default function HomeClient() {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/pools", {
+      const res = await fetch(apiUrl(`/api/pools`), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ poolName, displayName: creatorName }),
@@ -44,7 +45,7 @@ export default function HomeClient() {
     setError(null);
     try {
       const code = joinCode.trim().toUpperCase();
-      const res = await fetch(`/api/pools/${code}/join`, {
+      const res = await fetch(apiUrl(`/api/pools/${code}/join`), {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ displayName: joinName }),

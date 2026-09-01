@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ROUNDS, PICKS_PER_ROUND, groups, type RoundKey } from "@/data/worldcup2026";
 import { PICKS_LOCK_AT } from "@/lib/lock";
+import { apiUrl } from "@/lib/site";
 
 interface TeamLite { code: string; name: string; group: string; }
 interface ExistingPick { round: string; teamCode: string; groupId: string | null; }
@@ -195,7 +196,7 @@ export default function PicksClient({
     setResetting(true);
     setError(null);
     setSaved(false);
-    const res = await fetch(`/api/pools/${poolCode}/picks`, {
+    const res = await fetch(apiUrl(`/api/pools/${poolCode}/picks`), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ picks: [] }),
@@ -224,7 +225,7 @@ export default function PicksClient({
     for (const code of semifinalPicks) picks.push({ round: "SEMIFINAL", teamCode: code });
     for (const code of winnerPick)     picks.push({ round: "WINNER",    teamCode: code });
 
-    const res = await fetch(`/api/pools/${poolCode}/picks`, {
+    const res = await fetch(apiUrl(`/api/pools/${poolCode}/picks`), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ picks }),
