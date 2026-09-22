@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "wcpool-dev",
-      "runtimeExecutable": "/opt/homebrew/bin/npm",
+      "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3000
     }
