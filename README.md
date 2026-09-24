@@ -1,5 +1,7 @@
 # World Cup Pool
 
+Built with [Claude Code](https://claude.com/claude-code) — [`CLAUDE.md`](CLAUDE.md) holds the project notes it works from.
+
 A bracket pool for the 2026 FIFA World Cup. Anyone with a 6-character pool code can join with a display name, make picks, and see a live leaderboard. No accounts, no passwords.
 
 - **Stack:** Next.js 16, React 19, Tailwind v4, Prisma + Postgres (Neon)
