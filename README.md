@@ -154,3 +154,7 @@ npm run db:seed
 ```
 
 The seed script upserts, so it won't wipe existing picks.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).
