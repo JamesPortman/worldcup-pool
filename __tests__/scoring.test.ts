@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import type { Pick, Team } from "@prisma/client";
+// The Prisma model is called Pick, which shadows TypeScript's own Pick<T, K> —
+// and team() below needs the built-in. So the model comes in as PickRow here.
+import type { Pick as PickRow, Team } from "@prisma/client";
 import { scorePick, scoreAllPicks, POINTS } from "@/lib/scoring";
 
 // ── Test factories ─────────────────────────────────────────────────────────
@@ -14,7 +16,7 @@ function team(overrides: Partial<Team> & Pick<Team, "code" | "name" | "group">):
   } as Team;
 }
 
-function pick(overrides: Partial<Pick> & { round: string; teamCode: string }): Pick {
+function pick(overrides: Partial<PickRow> & { round: string; teamCode: string }): PickRow {
   return {
     id: `pick_${Math.random().toString(36).slice(2)}`,
     playerId: "player_1",
@@ -22,7 +24,7 @@ function pick(overrides: Partial<Pick> & { round: string; teamCode: string }): P
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
-  } as Pick;
+  } as PickRow;
 }
 
 describe("scorePick — GROUP round", () => {
