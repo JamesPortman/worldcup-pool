@@ -84,8 +84,8 @@ export default async function ArchitecturePage({
               <div className="font-semibold">End-to-end tests guard every deploy</div>
               <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
                 Playwright runs the full create → pick → leaderboard flow against a real
-                Postgres in CI on every push, and the unit suite gates the production
-                build — a failing test blocks the deploy.
+                Postgres in CI on every PR and push to <code>main</code>, and the unit
+                suite gates the production build — a failing test blocks the deploy.
               </p>
             </div>
           </div>
@@ -108,9 +108,12 @@ export default async function ArchitecturePage({
         <section className="mb-12">
           <h2 className="text-xl font-semibold mb-1">2 · CI/CD &amp; deployment topology</h2>
           <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
-            <code>main</code> is branch-protected; all work lands via PRs. Each
-            push builds on Vercel, and the build is gated by the unit-test suite
-            before Next.js compiles.
+            <code>main</code> is branch-protected; all work lands via PRs. Every PR
+            and push to <code>main</code> runs two GitHub Actions workflows —{" "}
+            <code>ci.yml</code> (lint → unit tests → build, with a placeholder{" "}
+            <code>DATABASE_URL</code>) and <code>e2e.yml</code> (Playwright against an
+            ephemeral Postgres service). Each push also builds on Vercel, and that
+            build is gated by the unit-test suite before Next.js compiles.
           </p>
           <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4 overflow-x-auto text-neutral-800 dark:text-neutral-100">
             <PipelineDiagram />
@@ -193,7 +196,7 @@ export default async function ArchitecturePage({
             <FlowCard
               title="Create / join a pool"
               steps={[
-                "HomeClient POSTs to /api/pools or /api/pools/[code]/join.",
+                "HomeClient POSTs to apiUrl(\"/api/pools\") or apiUrl(\"/api/pools/[code]/join\").",
                 "Route handler creates the Pool/Player and calls setPlayerIdCookie().",
                 "wcpool_pid (httpOnly, 90-day) is written; client routes to /pools/[code].",
               ]}
@@ -228,8 +231,9 @@ export default async function ArchitecturePage({
               title="Leaderboard"
               steps={[
                 "Server component loads players + picks + teams in one pass.",
-                "scoreAllPicks() computes per-round and total points purely in memory.",
-                "Rows sort by total desc, then alphabetically by name as a tie-break.",
+                "scoreAllPicks() computes per-round and total points purely in memory; getWinPercents() adds Win %.",
+                "The page hands serializable rows to LeaderboardClient, which sorts them: Total desc by default, name as tie-break.",
+                "Clicking Total or Win % re-sorts (click again to flip direction); rows without a Win % sort last.",
               ]}
             />
           </div>
@@ -296,7 +300,11 @@ export default async function ArchitecturePage({
               resolves each team to our codes, and builds the current bracket: the
               earliest undecided round is the <em>frontier</em>; winners of adjacent
               matches meet in the next round up to the final. Finished semifinals /
-              final lock in milestones for already-eliminated teams.
+              final lock in milestones for already-eliminated teams. The provider
+              back-fills a round&apos;s teams only once the previous round is official,
+              so a half-empty frontier (e.g. &ldquo;ESP vs TBD&rdquo;) is rebuilt from
+              the previous round&apos;s winners; if a side is still unknown the bracket
+              is treated as unavailable — it never simulates against a TBD opponent.
             </li>
             <li>
               <strong>Match model</strong> — <code>data/ratings.ts</code> holds a
@@ -331,7 +339,8 @@ export default async function ArchitecturePage({
             <ul className="text-sm space-y-2 text-neutral-700 dark:text-neutral-300 list-disc pl-5">
               <li>No passwords. Identity = the <code>wcpool_pid</code> cookie (httpOnly, SameSite=Lax).</li>
               <li>The cookie alone grants nothing: every API route verifies the player belongs to the pool named in the URL.</li>
-              <li>Admin writes are gated by a server-checked <code>ADMIN_TOKEN</code> env var; the page UI never trusts the client.</li>
+              <li>Every <code>/api/admin/*</code> route — reads included — is gated by a server-checked <code>ADMIN_TOKEN</code> (sent as <code>x-admin-token</code>); the <code>/admin</code> HTML renders nothing sensitive until the token is verified.</li>
+              <li>Pool creation (5/min) and joining (15/min) are rate-limited per client IP by <code>lib/rate-limit.ts</code> — in-memory and per-instance, so best-effort only.</li>
               <li>Viewing another player&apos;s picks reuses <code>PicksClient</code> in a <code>locked</code> (read-only) mode.</li>
               <li>Picks close when the admin locks the pool <em>or</em> the global deadline in <code>lib/lock.ts</code> passes (end of Jun 10, 2026) — enforced in both the picks API and UI.</li>
             </ul>
@@ -344,6 +353,8 @@ export default async function ArchitecturePage({
               <li>Prisma is a global singleton to survive serverless function reuse and avoid connection storms.</li>
               <li>Pages use <code>export const dynamic = &quot;force-dynamic&quot;</code> so picks/leaderboards are never statically cached.</li>
               <li>Build: <code>prisma generate → vitest run → next build</code> — a failing test blocks the deploy.</li>
+              <li>Mounted at <code>/worldcup</code>, not a domain root: <code>BASE_PATH</code> in <code>lib/site.ts</code> feeds <code>next.config.ts</code>&apos;s <code>basePath</code> and the canonical URL in the root layout. <code>basePath</code> does not rewrite <code>fetch()</code>, so every client API call goes through <code>apiUrl()</code>; a unit test pins config and helper together.</li>
+              <li>Lint, tests and build need only a <em>placeholder</em> <code>DATABASE_URL</code> — Prisma must construct, but nothing connects (tests mock <code>@/lib/db</code>).</li>
               <li>Vercel Web Analytics via <code>&lt;Analytics /&gt;</code> (<code>@vercel/analytics</code>) mounted in the root layout — privacy-friendly page-view metrics.</li>
             </ul>
           </div>
@@ -384,12 +395,13 @@ export default async function ArchitecturePage({
           <h2 className="text-xl font-semibold mb-3">10 · Repository map</h2>
           <pre className="text-xs leading-relaxed overflow-x-auto rounded-xl border border-neutral-200 dark:border-neutral-800 p-4 bg-neutral-50 dark:bg-neutral-900">
 {`app/
-  layout.tsx                       root layout · mounts <Analytics/>
+  layout.tsx                       root layout · <Analytics/> · canonical metadata
   page.tsx · HomeClient.tsx        create / join a pool
   pools/[code]/
     page.tsx                       pool dashboard
     picks/  page.tsx · PicksClient  progressive bracket picker
-    leaderboard/page.tsx           scored standings + win % (server-computed)
+    leaderboard/ page.tsx · LeaderboardClient
+                                   scored standings + win % · sortable table
   how-it-works/ · architecture/    static reference pages
   admin/  page.tsx · AdminClient    results entry (token-gated)
   api/
@@ -398,17 +410,23 @@ export default async function ArchitecturePage({
     pools/[code]/picks/route.ts    atomic replace of a player's picks
     admin/results/route.ts         set team results / lock pool
     admin/fetch-results/route.ts   pull live results from football-data.org
+    admin/data/route.ts            admin dashboard data (token-gated read)
+    admin/players/[id]/route.ts    delete a player (picks cascade)
+    health/route.ts                DB liveness check
 components/   Navigation (client · active-link) · HeroBanner · ThemeToggle
 lib/          db.ts (Prisma singleton) · session.ts (cookie)
+              site.ts (BASE_PATH · apiUrl) · rate-limit.ts (in-memory)
               scoring.ts (pure, cumulative) · lock.ts (pick deadline)
               results.ts (map providers + derive fetched results)
               win-probability.ts · tournament-bracket.ts (Elo Monte-Carlo)
 data/         worldcup2026.ts (48 teams, rounds, points) · ratings.ts (Elo)
 prisma/       schema.prisma · seed.ts
 scripts/      backup-db.sh · restore-db.sh · db-url.sh
-.github/      workflows/backup.yml (scheduled pg_dump)
-__tests__/    vitest unit + component tests
-e2e/          playwright smoke tests`}
+instrumentation*.ts · app/global-error.tsx   Sentry (inert until DSN set)
+.github/      workflows/ci.yml (lint · test · build) · e2e.yml (Playwright + Postgres)
+              workflows/backup.yml (scheduled pg_dump)
+__tests__/    vitest unit + component tests (Prisma mocked)
+e2e/          playwright: smoke · admin (public pages) · flow (real DB)`}
           </pre>
         </section>
       </main>
@@ -482,7 +500,7 @@ function RuntimeDiagram() {
       y: 8, h: 92, color: "#002868",
       title: "Browser — React 19 client",
       lines: [
-        "Client components: HomeClient · PicksClient · AdminClient · Navigation · ThemeToggle",
+        "Client components: HomeClient · PicksClient · LeaderboardClient · AdminClient · Navigation · ThemeToggle",
         "State: useState/useMemo bracket model · wcpool_pid cookie (httpOnly)",
       ],
     },
@@ -491,7 +509,7 @@ function RuntimeDiagram() {
       title: "Next.js 16 App Router  ·  Vercel (Node runtime)",
       lines: [
         "Server Components render pages (dynamic = force-dynamic)",
-        "Route Handlers /api/* — pools · join · picks · admin/results",
+        "Route Handlers /api/* — pools · join · picks · health · admin/{data,results,fetch-results,players}",
         "lib/session.ts reads/writes the player cookie",
       ],
     },
@@ -511,7 +529,7 @@ function RuntimeDiagram() {
   ];
 
   const arrows: { y1: number; y2: number; label: string }[] = [
-    { y1: 100, y2: 148, label: "HTTPS · fetch() / navigation" },
+    { y1: 100, y2: 148, label: "HTTPS · fetch(apiUrl()) / navigation under /worldcup" },
     { y1: 248, y2: 296, label: "prisma.* query" },
     { y1: 362, y2: 410, label: "SQL over TCP" },
   ];
@@ -564,7 +582,7 @@ function RuntimeDiagram() {
 function PipelineDiagram() {
   const stages: { x: number; title: string; lines: string[]; color: string }[] = [
     { x: 8, title: "Developer", lines: ["feature branch", "local: npm run build"], color: "#002868" },
-    { x: 196, title: "GitHub", lines: ["main (protected)", "PR + checks"], color: "#444" },
+    { x: 196, title: "GitHub", lines: ["main (protected)", "Actions: ci.yml", "Actions: e2e.yml"], color: "#444" },
     { x: 384, title: "Vercel Build", lines: ["prisma generate", "vitest run (gate)", "next build"], color: "#BF0A30" },
     { x: 572, title: "Production", lines: ["CDN + Node fns", "→ Neon Postgres"], color: "#006847" },
   ];
