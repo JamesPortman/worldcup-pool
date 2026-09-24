@@ -22,7 +22,7 @@ the tests, not the compile — reach for `npm run test` while iterating.
 
 ## The app is mounted at a path, not a domain root
 
-It is served at `/worldcup` (canonical home `worldcup.portman.ca`). `BASE_PATH`
+It is served at `/worldcup` (canonical home `www.portman.ca/worldcup`). `BASE_PATH`
 in `lib/site.ts` is the single source of truth; `next.config.ts` imports it, and
 `__tests__/base-path.test.ts` pins the two together.
 
