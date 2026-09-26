@@ -16,8 +16,12 @@ fi
 REPO_ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 cd "$REPO_ROOT"
 
+# `npm ci`, not `npm install`: it installs exactly what package-lock.json pins
+# and never rewrites it. `npm install` with the container's npm quietly
+# reformatted the lockfile (dropping `libc` fields), leaving a dirty tree in
+# every new session.
 echo "[session-start] installing npm dependencies…"
-npm install --no-audit --no-fund
+npm ci --no-audit --no-fund
 
 # `postinstall` already runs this, but npm skips lifecycle scripts when
 # node_modules comes back warm from the container cache. Regenerating is cheap
