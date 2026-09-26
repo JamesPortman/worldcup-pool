@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getPlayerIdCookie } from "@/lib/session";
+import { getSession } from "@/lib/session";
 import { picksLocked } from "@/lib/lock";
 import { ROUNDS, PICKS_PER_ROUND, groups, teams, type RoundKey } from "@/data/worldcup2026";
 
@@ -22,8 +22,9 @@ export async function POST(
   ctx: { params: Promise<{ code: string }> },
 ) {
   const { code } = await ctx.params;
-  const playerId = await getPlayerIdCookie();
-  if (!playerId) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  const { playerId } = session;
 
   const pool = await prisma.pool.findUnique({
     where: { joinCode: code.toUpperCase() },
@@ -34,6 +35,12 @@ export async function POST(
     return NextResponse.json({ error: "You're not a member of this pool." }, { status: 403 });
   }
   if (picksLocked(pool)) return NextResponse.json({ error: "Picks are closed." }, { status: 400 });
+  if (!session.canEdit) {
+    return NextResponse.json(
+      { error: "You signed back in by name, so this session is view-only. Edit from the device you joined on." },
+      { status: 403 },
+    );
+  }
 
   let body: { picks?: unknown };
   try {

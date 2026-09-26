@@ -97,7 +97,10 @@ page in the same commit.
   in the repo. `.env*` is gitignored.
 - The player cookie is HMAC-signed (`lib/session.ts`); its key is
   `SESSION_SECRET`, else derived from `ADMIN_TOKEN`, so rotating that key signs
-  every player out.
+  every player out. Re-joining with an existing name issues a **view-only**
+  session (`playerId.view.hmac`); only the session from the original join can
+  write picks. Check `getSession().canEdit`, not just the player id, on any
+  route that changes a player's data.
 - Sentry is scaffolded but inert until its DSN vars are set; don't assume it's
   reporting.
 - `lib/rate-limit.ts` is in-memory and per-instance — best-effort, not a global

@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import Navigation from "@/components/Navigation";
 import HeroBanner from "@/components/HeroBanner";
 import { prisma } from "@/lib/db";
-import { getPlayerIdCookie } from "@/lib/session";
+import { getSession } from "@/lib/session";
 import { picksLocked } from "@/lib/lock";
 import PicksClient from "./PicksClient";
 
@@ -22,7 +22,8 @@ export default async function PicksPage({
   });
   if (!pool) notFound();
 
-  const viewerId = await getPlayerIdCookie();
+  const session = await getSession();
+  const viewerId = session?.playerId ?? null;
   const teams = await prisma.team.findMany({ orderBy: [{ group: "asc" }, { name: "asc" }] });
 
   // ── Viewing another player's picks (read-only) ────────────────────────────
@@ -80,11 +81,13 @@ export default async function PicksPage({
           Hi {me.displayName}.{" "}
           {picksLocked(pool)
             ? "Picks are locked — read-only."
-            : "Save anytime. You can edit until entries close on June 10, 2026."}
+            : !session?.canEdit
+              ? "You signed back in by name, so this is read-only. Edit from the device you joined on."
+              : "Save anytime. You can edit until entries close on June 10, 2026."}
         </p>
         <PicksClient
           poolCode={pool.joinCode}
-          locked={picksLocked(pool)}
+          locked={picksLocked(pool) || !session?.canEdit}
           teams={teams}
           existingPicks={me.picks.map((p) => ({
             round: p.round,
