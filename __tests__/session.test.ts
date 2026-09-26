@@ -32,7 +32,7 @@ describe("generateJoinCode", () => {
 // ── Signed player cookie ────────────────────────────────────────────────────────
 describe("signPlayerId / verifyPlayerId", () => {
   beforeEach(() => {
-    vi.stubEnv("SESSION_SECRET", "");
+    vi.stubEnv("SESSION_SECRET", "test-session-secret");
     vi.stubEnv("ADMIN_TOKEN", "test-token");
   });
   afterEach(() => vi.unstubAllEnvs());
@@ -68,20 +68,24 @@ describe("signPlayerId / verifyPlayerId", () => {
 
   it("rejects a cookie signed under a different key", () => {
     const value = signPlayerId("player_1");
-    vi.stubEnv("ADMIN_TOKEN", "rotated-token");
+    vi.stubEnv("SESSION_SECRET", "rotated-secret");
     expect(verifyPlayerId(value)).toBeNull();
   });
 
-  it("prefers SESSION_SECRET over the ADMIN_TOKEN-derived key", () => {
-    const derived = signPlayerId("player_1");
-    vi.stubEnv("SESSION_SECRET", "explicit-secret");
-    const explicit = signPlayerId("player_1");
-    expect(explicit).not.toBe(derived);
-    expect(verifyPlayerId(explicit)).toBe("player_1");
-    expect(verifyPlayerId(derived)).toBeNull();
+  it("does not depend on ADMIN_TOKEN (rotating it keeps players signed in)", () => {
+    const value = signPlayerId("player_1");
+    vi.stubEnv("ADMIN_TOKEN", "rotated-token");
+    expect(verifyPlayerId(value)).toBe("player_1");
+  });
+
+  it("never signs with a key derived from ADMIN_TOKEN", () => {
+    vi.stubEnv("SESSION_SECRET", "");
+    vi.stubEnv("NODE_ENV", "production");
+    expect(() => signPlayerId("player_1")).toThrow(/SESSION_SECRET/);
   });
 
   it("throws in production when no key is configured", () => {
+    vi.stubEnv("SESSION_SECRET", "");
     vi.stubEnv("ADMIN_TOKEN", "");
     vi.stubEnv("NODE_ENV", "production");
     expect(() => signPlayerId("player_1")).toThrow(/SESSION_SECRET/);
@@ -89,6 +93,7 @@ describe("signPlayerId / verifyPlayerId", () => {
   });
 
   it("falls back to a dev key outside production", () => {
+    vi.stubEnv("SESSION_SECRET", "");
     vi.stubEnv("ADMIN_TOKEN", "");
     vi.stubEnv("NODE_ENV", "test");
     expect(verifyPlayerId(signPlayerId("player_1"))).toBe("player_1");

@@ -27,6 +27,7 @@ jobs:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/worldcup_test
       DATABASE_URL_UNPOOLED: postgresql://postgres:postgres@localhost:5432/worldcup_test
       ADMIN_TOKEN: test-token
+      SESSION_SECRET: test-session-secret
       CI: "true"
     steps:
       - uses: actions/checkout@v4
