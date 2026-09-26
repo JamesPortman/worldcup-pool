@@ -2,8 +2,9 @@
 # Logical backup of the World Cup Pool database.
 # Writes a timestamped, gzipped plain-SQL dump to ./backups/.
 #
-# First pull production credentials locally (once):
-#   npx vercel env pull .env.production.local
+# Vercel stores the database vars as sensitive, so `vercel env pull` returns
+# them empty. Export the direct (unpooled) URL from the Neon console instead:
+#   export DATABASE_URL_UNPOOLED="postgres://…"
 # then:  npm run db:backup
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -13,7 +14,7 @@ source scripts/db-url.sh
 URL="$(resolve_db_url || true)"
 if [[ -z "${URL:-}" ]]; then
   echo "❌ No database URL found." >&2
-  echo "   Set DATABASE_URL_UNPOOLED, or pull prod creds: npx vercel env pull .env.production.local" >&2
+  echo "   Set DATABASE_URL_UNPOOLED to the direct connection string from the Neon console." >&2
   exit 1
 fi
 if ! command -v pg_dump >/dev/null 2>&1; then
