@@ -6,7 +6,8 @@ A bracket pool for the 2026 FIFA World Cup. Anyone with a 6-character pool code 
 
 - **Stack:** Next.js 16, React 19, Tailwind v4, Prisma + Postgres (Neon)
 - **Hosting:** Vercel (free tier is plenty)
-- **Auth:** name + pool code (cookie-based player session)
+- **Auth:** name + pool code (HMAC-signed cookie player session)
+- **Path:** served under `/worldcup` (`BASE_PATH` in `lib/site.ts`), not at a domain root
 - **Scoring:** Group winner=1, Final 4=4, Semi-Final=8, Winner=16 (max 60)
 
 ## Local development
@@ -14,28 +15,38 @@ A bracket pool for the 2026 FIFA World Cup. Anyone with a 6-character pool code 
 ```bash
 npm install
 cp .env.example .env.local
-# Fill in DATABASE_URL with a Postgres connection string (Neon, local Postgres, etc.)
+# Fill in DATABASE_URL with a Postgres connection string (Neon, local Postgres, etc.),
+# and add DATABASE_URL_UNPOOLED — the schema's directUrl, which Prisma requires.
+# Locally both can be the same string.
 npm run db:push      # create tables
-npm run db:seed      # load the 48 teams + 12 groups
-npm run dev          # http://localhost:3000
+npm run db:seed      # load the 48 teams (A–L groups)
+npm run dev          # http://localhost:3000/worldcup
 ```
+
+The app is mounted at `/worldcup`, so `http://localhost:3000/` itself 404s —
+that's expected. Locally, with no `SESSION_SECRET` or `ADMIN_TOKEN`, player
+cookies are signed with a built-in dev key; production refuses to start a
+session without one of them.
 
 ## Testing
 
 ```bash
 npm run test         # Vitest unit + component tests (jsdom)
 npm run test:watch   # Vitest in watch mode
-npm run test:e2e     # Playwright smoke tests (auto-starts a dev server)
+npm run test:e2e     # Playwright e2e tests (auto-starts a dev server)
 ```
 
-- **Unit/component tests** live in `__tests__/` — pure logic (`lib/scoring.ts`,
-  `data/worldcup2026.ts`, join-code generation) plus React component render
-  tests via `@testing-library/react`.
-- **End-to-end tests** live in `e2e/` — public-page smoke tests (home,
-  how-it-works, architecture, nav) plus a **full create-pool → picks →
-  leaderboard flow** (`flow.spec.ts`) that exercises the real DB. The flow runs
-  in CI against an ephemeral Postgres service (`.github/workflows/e2e.yml`);
-  locally it needs a throwaway database (don't point it at production). Run
+- **Unit/component tests** live in `__tests__/` — pure logic (scoring, the
+  team data, bracket, win probability, results mapping, pick locking, rate
+  limiting, signed sessions), the API routes with Prisma mocked, plus React
+  component render tests via `@testing-library/react`.
+- **End-to-end tests** live in `e2e/` — public-page smoke tests
+  (`smoke.spec.ts`: home, how-it-works, architecture, nav) plus two specs that
+  exercise the real DB: a **full create-pool → picks → leaderboard flow**
+  (`flow.spec.ts`) and the **admin token gate → lock a pool** path
+  (`admin.spec.ts`, which uses `ADMIN_TOKEN`, defaulting to `test-token`). Both
+  run in CI against an ephemeral Postgres service (`.github/workflows/e2e.yml`);
+  locally they need a throwaway database (don't point them at production). Run
   `npx playwright install chromium` once before the first e2e run.
 - `npm run build` runs the unit suite **before** `next build`, so a failing
   test blocks the production deploy.
@@ -69,7 +80,7 @@ In **Settings → Environment Variables**, add:
 | `ADMIN_TOKEN` | a long random string (you choose)      | Production, Preview |
 | `SESSION_SECRET` | *optional* — a long random string   | Production, Preview |
 
-You'll need `ADMIN_TOKEN` on the `/admin` page to enter results and lock pools.
+You'll need `ADMIN_TOKEN` on the `/worldcup/admin` page to enter results and lock pools.
 Player session cookies are HMAC-signed with `SESSION_SECRET`, or, when that isn't
 set, with a key derived from `ADMIN_TOKEN` — so set `SESSION_SECRET` if you want
 to rotate the admin token without signing every player out. Changing whichever
@@ -82,29 +93,31 @@ Click **Deploy**. The build runs `prisma generate && vitest run && next build` �
 
 ### 6. Create the schema in Neon
 
-After the first successful deploy, push the Prisma schema to Neon and seed the teams. From your laptop:
+After the first successful deploy, push the Prisma schema to Neon and seed the teams. From your laptop,
+using the **direct** Neon URL (see [Backups](#backups) for where to find it —
+`vercel env pull` returns the database vars empty because Vercel stores them as
+sensitive):
 
 ```bash
-# Pull the production env vars into a local .env file
-npx vercel env pull .env.production.local
-
-# Push schema and seed teams using that env
-DATABASE_URL=$(grep '^DATABASE_URL=' .env.production.local | cut -d= -f2- | tr -d '"') npm run db:push
-DATABASE_URL=$(grep '^DATABASE_URL=' .env.production.local | cut -d= -f2- | tr -d '"') npm run db:seed
+export DATABASE_URL="postgresql://…neon.tech/neondb?sslmode=require"   # from Neon
+export DATABASE_URL_UNPOOLED="$DATABASE_URL"                           # Prisma's directUrl
+npm run db:push
+npm run db:seed
 ```
-
-(`npx vercel env pull` will prompt you to install + link the project the first time.)
 
 ### 7. Try it
 
-- Open the deployed URL → create a pool → share the join code.
-- Visit `/admin` and paste your `ADMIN_TOKEN` to mark teams as advancing or lock a pool.
+- Open `<deployed-url>/worldcup` → create a pool → share the join code. (The bare
+  domain root 404s — the app only lives under `/worldcup`.)
+- Visit `/worldcup/admin` and paste your `ADMIN_TOKEN` to mark teams as advancing or lock a pool.
+- `/worldcup/api/health` returns `{ ok, teams }` — a quick check that the database
+  is reachable and seeded (expect `teams: 48`).
 
 ## Running the pool day-to-day
 
-- **Before kickoff:** each player joins with the code and submits picks. Picks can be edited until you lock the pool from `/admin`.
-- **After each round:** in `/admin`, set each surviving team's "reached round" to the round they reached. Check **won group** for the 12 group winners after the group stage. Check **champion** for the team that wins the final. The leaderboard updates instantly.
-- **Auto-fetch results (optional):** in `/admin`, the **"Fetch latest results"** button pulls live standings + knockout results from [football-data.org](https://www.football-data.org/) and **stages the changes for you to review** (group winners, Final-4, finalists, champion) — nothing is saved until you click **Apply**. It maps the provider's teams to ours by 3-letter code / name; any it can't match are flagged so you can set them by hand. Enable it by setting a free **`FOOTBALL_API_KEY`** env var on Vercel (the World Cup competition is on the free tier).
+- **Before kickoff:** each player joins with the code and submits picks. Picks can be edited until the pool locks — either when you lock it from `/worldcup/admin`, or automatically at the fixed deadline in `lib/lock.ts` (`PICKS_LOCK_AT`: end of June 10, 2026 Eastern, the day before kickoff), whichever comes first. Once locked, new players can't join, but existing players can still sign back in (same name) to view their picks and the leaderboard.
+- **After each round:** in `/worldcup/admin`, toggle **Group winner** on the 12 group winners after the group stage. As the knockouts resolve, set each team's **stage reached** dropdown to the furthest stage it got to (Final 4, Final, or **Champion** for the team that wins the final) — earlier-round points are awarded automatically. Changes save instantly and the leaderboard reflects them on the next load. The admin page can also remove a player from a pool.
+- **Auto-fetch results (optional):** in `/worldcup/admin`, the **"Fetch latest results"** button pulls live standings + knockout results from [football-data.org](https://www.football-data.org/) and **stages the changes for you to review** (group winners, Final-4, finalists, champion) — nothing is saved until you click **Apply**. It maps the provider's teams to ours by 3-letter code / name; any it can't match are flagged so you can set them by hand. Enable it by setting a free **`FOOTBALL_API_KEY`** env var on Vercel (the World Cup competition is on the free tier).
 
 ## Backups
 
