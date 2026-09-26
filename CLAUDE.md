@@ -79,11 +79,11 @@ page in the same commit.
 - `__tests__/` — pure logic (scoring, bracket, win probability, rate limiting,
   sessions) plus React component tests via `@testing-library/react`. Prisma is
   mocked. These run anywhere.
-- `e2e/` — `smoke.spec.ts` and `admin.spec.ts` hit public pages;
-  `flow.spec.ts` drives a real create-pool → picks → leaderboard flow against a
-  **real database**. CI gives it an ephemeral Postgres service
+- `e2e/` — `smoke.spec.ts` hits public pages; `admin.spec.ts` (creates and
+  locks a pool) and `flow.spec.ts` (create-pool → picks → leaderboard) run
+  against a **real database**. CI gives them an ephemeral Postgres service
   (`.github/workflows/e2e.yml`). A cloud session has no Postgres server, so the
-  flow spec can't run there — leave it to CI rather than working around it.
+  DB-backed specs can't run there — leave it to CI rather than working around it.
 - `vitest.config.mts` excludes `e2e/`, so `vitest` never tries to run Playwright
   specs.
 
