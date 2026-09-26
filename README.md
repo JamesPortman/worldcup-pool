@@ -67,8 +67,14 @@ In **Settings → Environment Variables**, add:
 | Key           | Value                                  | Environments        |
 |---------------|----------------------------------------|---------------------|
 | `ADMIN_TOKEN` | a long random string (you choose)      | Production, Preview |
+| `SESSION_SECRET` | *optional* — a long random string   | Production, Preview |
 
-You'll need this string on the `/admin` page to enter results and lock pools.
+You'll need `ADMIN_TOKEN` on the `/admin` page to enter results and lock pools.
+Player session cookies are HMAC-signed with `SESSION_SECRET`, or, when that isn't
+set, with a key derived from `ADMIN_TOKEN` — so set `SESSION_SECRET` if you want
+to rotate the admin token without signing every player out. Changing whichever
+key is in use signs everyone out; players get back in by re-joining with the same
+name.
 
 ### 5. Deploy
 
@@ -125,11 +131,28 @@ Requires the Postgres client tools: `brew install libpq && brew link --force lib
 of exporting it.)
 
 **Automated (GitHub Actions):** `.github/workflows/backup.yml` runs `pg_dump`
-daily (and on demand) and stores each dump as a **90-day workflow artifact**.
-Activate it by adding a repository secret **`DATABASE_URL_UNPOOLED`** (the direct
-Neon URL above) under **GitHub → Settings → Secrets and variables → Actions** —
-or `gh secret set DATABASE_URL_UNPOOLED --body "<paste-neon-url>"`. Then trigger a
-run from the **Actions** tab to verify, and download the artifact from the run page.
+daily (and on demand), **encrypts** it with gpg (AES-256), and stores each
+encrypted dump as a **90-day workflow artifact**. This repo is public, so artifacts
+can be downloaded by any signed-in GitHub user — which is why the dump is encrypted
+and why the job **fails rather than upload plaintext** if the passphrase is missing.
+It needs two repository secrets under **GitHub → Settings → Secrets and variables →
+Actions**:
+
+- **`DATABASE_URL_UNPOOLED`** — the direct Neon URL above
+  (`gh secret set DATABASE_URL_UNPOOLED --body "<paste-neon-url>"`).
+- **`BACKUP_PASSPHRASE`** — a long random passphrase
+  (`gh secret set BACKUP_PASSPHRASE --body "$(openssl rand -base64 32)"` — but
+  generate it yourself first and **keep a copy somewhere safe**: GitHub won't show
+  it again, and a backup can't be restored without it).
+
+Then trigger a run from the **Actions** tab to verify, and download the artifact
+from the run page. To restore one:
+
+```bash
+unzip db-backup-<run-id>.zip
+gpg --decrypt worldcup-<timestamp>.sql.gz.gpg > worldcup-<timestamp>.sql.gz  # prompts for BACKUP_PASSPHRASE
+npm run db:restore -- worldcup-<timestamp>.sql.gz                            # OVERWRITES the target!
+```
 
 Neon also offers point-in-time restore from its console, but the free-plan window
 is short — treat these dumps as the durable copy.

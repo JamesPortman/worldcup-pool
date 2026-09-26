@@ -26,13 +26,17 @@ export default async function PicksPage({
   const teams = await prisma.team.findMany({ orderBy: [{ group: "asc" }, { name: "asc" }] });
 
   // ── Viewing another player's picks (read-only) ────────────────────────────
-  if (playerParam && playerParam !== viewerId) {
-    const target = await prisma.player.findFirst({
-      where: { id: playerParam, poolId: pool.id },
-      include: { picks: true },
-    });
-    if (!target) notFound();
+  // ?player= is a display name (unique per pool) — player ids never reach the
+  // browser. Your own name falls through to the editable view below.
+  const target = typeof playerParam === "string" && playerParam
+    ? await prisma.player.findUnique({
+        where: { poolId_displayName: { poolId: pool.id, displayName: playerParam } },
+        include: { picks: true },
+      })
+    : null;
+  if (playerParam && !target) notFound();
 
+  if (target && target.id !== viewerId) {
     return (
       <>
         <Navigation poolCode={pool.joinCode} />

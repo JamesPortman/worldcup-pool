@@ -9,7 +9,8 @@ export async function GET() {
     const teamCount = await prisma.team.count();
     return NextResponse.json({ ok: true, teams: teamCount });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
+    // Log the detail server-side; the endpoint is public, so don't echo it.
+    console.error("[GET /api/health]", err instanceof Error ? err.message : String(err));
+    return NextResponse.json({ ok: false, error: "Database unavailable." }, { status: 500 });
   }
 }

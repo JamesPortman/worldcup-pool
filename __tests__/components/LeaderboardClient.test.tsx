@@ -3,9 +3,9 @@ import { render, screen, fireEvent, within } from "@testing-library/react";
 import LeaderboardClient, { type LeaderboardRow } from "@/app/pools/[code]/leaderboard/LeaderboardClient";
 
 const rows: LeaderboardRow[] = [
-  { id: "a", name: "Alice", total: 10, byRound: { GROUP: 10, FINAL4: 0, SEMIFINAL: 0, WINNER: 0 },
+  { name: "Alice", total: 10, byRound: { GROUP: 10, FINAL4: 0, SEMIFINAL: 0, WINNER: 0 },
     final4Teams: [], semifinalCodes: [], winnerCode: null, winPct: 20 },
-  { id: "b", name: "Bob", total: 5, byRound: { GROUP: 5, FINAL4: 0, SEMIFINAL: 0, WINNER: 0 },
+  { name: "Bob", total: 5, byRound: { GROUP: 5, FINAL4: 0, SEMIFINAL: 0, WINNER: 0 },
     final4Teams: [], semifinalCodes: [], winnerCode: null, winPct: 80 },
 ];
 
@@ -39,5 +39,14 @@ describe("LeaderboardClient sorting", () => {
     render(<LeaderboardClient rows={rows} poolCode="ABC234" showWin={false} />);
     expect(screen.queryByRole("button", { name: /win %/i })).toBeNull();
     expect(screen.getByRole("button", { name: /total/i })).toBeInTheDocument();
+  });
+});
+
+describe("LeaderboardClient links", () => {
+  it("links to a player's picks by display name (no player ids reach the client)", () => {
+    const withSpace: LeaderboardRow[] = [{ ...rows[0], name: "Mary Jo & Co" }];
+    render(<LeaderboardClient rows={withSpace} poolCode="ABC234" showWin={false} />);
+    const link = screen.getByRole("link", { name: "Mary Jo & Co" });
+    expect(link.getAttribute("href")).toBe("/pools/ABC234/picks?player=Mary%20Jo%20%26%20Co");
   });
 });

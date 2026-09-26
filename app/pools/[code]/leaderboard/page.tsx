@@ -30,6 +30,8 @@ export default async function LeaderboardPage({
   const showWin = winPct !== null;
 
   // Serializable rows for the client table (it handles sorting by Total / Win %).
+  // No player ids: they're internal, so rows are keyed by display name (unique
+  // per pool) and link to a player's picks by name.
   const rows: LeaderboardRow[] = pool.players.map((p) => {
     const { total, byRound } = scoreAllPicks(p.picks, teamsByCode);
 
@@ -47,7 +49,6 @@ export default async function LeaderboardPage({
     const winnerCode = p.picks.find((pk) => pk.round === "WINNER")?.teamCode ?? null;
 
     return {
-      id: p.id,
       name: p.displayName,
       total,
       byRound,

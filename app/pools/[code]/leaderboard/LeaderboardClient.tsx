@@ -5,8 +5,7 @@ import Link from "next/link";
 import { ROUNDS, type RoundKey } from "@/data/worldcup2026";
 
 export interface LeaderboardRow {
-  id: string;
-  name: string;
+  name: string; // display name — unique within a pool, so it doubles as the row key
   total: number;
   byRound: Record<string, number>;
   final4Teams: { code: string; name: string }[];
@@ -104,7 +103,7 @@ export default function LeaderboardClient({
           )}
           {sorted.map((row, idx) => (
             <tr
-              key={row.id}
+              key={row.name}
               className={`border-b border-neutral-200 dark:border-neutral-800 ${
                 idx < 3 ? "bg-yellow-100 dark:bg-yellow-900/30" : ""
               }`}
@@ -114,7 +113,7 @@ export default function LeaderboardClient({
               {/* Player name + Final 4 picks summary */}
               <td className="py-2 pr-3 align-top">
                 <Link
-                  href={`/pools/${poolCode}/picks?player=${row.id}`}
+                  href={`/pools/${poolCode}/picks?player=${encodeURIComponent(row.name)}`}
                   className="font-medium hover:underline text-[color:var(--color-brand)]"
                 >
                   {row.name}
