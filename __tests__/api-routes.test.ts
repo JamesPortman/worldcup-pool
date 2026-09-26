@@ -9,9 +9,10 @@ const { prismaMock, sessionMock } = vi.hoisted(() => ({
   prismaMock: {
     pool: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn(), findMany: vi.fn() },
     player: { findUnique: vi.fn(), create: vi.fn(), findFirst: vi.fn(), delete: vi.fn() },
-    team: { update: vi.fn(), findMany: vi.fn() },
+    team: { update: vi.fn(), findMany: vi.fn(), count: vi.fn() },
     pick: { deleteMany: vi.fn(), createMany: vi.fn() },
     $transaction: vi.fn(),
+    $queryRaw: vi.fn(),
   },
   sessionMock: {
     getPlayerIdCookie: vi.fn(),
@@ -37,6 +38,7 @@ import { POST as adminResults } from "@/app/api/admin/results/route";
 import { POST as adminData } from "@/app/api/admin/data/route";
 import { DELETE as deletePlayer } from "@/app/api/admin/players/[id]/route";
 import { POST as fetchResults } from "@/app/api/admin/fetch-results/route";
+import { GET as health } from "@/app/api/health/route";
 import { resetRateLimit } from "@/lib/rate-limit";
 import { Prisma } from "@prisma/client";
 
@@ -93,6 +95,15 @@ describe("POST /api/pools", () => {
     }
     expect(statuses.slice(0, 5)).toEqual([200, 200, 200, 200, 200]);
     expect(statuses[5]).toBe(429);
+  });
+
+  it("returns a generic 500 without leaking the underlying error", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    prismaMock.pool.findUnique.mockRejectedValue(new Error("connect ECONNREFUSED db.internal:5432"));
+    const res = await createPool(req({ poolName: "Crew", displayName: "James" }));
+    const data = await res.json();
+    expect(res.status).toBe(500);
+    expect(JSON.stringify(data)).not.toMatch(/ECONNREFUSED|db\.internal/);
   });
 });
 
@@ -214,6 +225,40 @@ describe("POST /api/pools/[code]/picks", () => {
     expect(prismaMock.pick.deleteMany).toHaveBeenCalledWith({ where: { playerId: "player_1" } });
     expect(prismaMock.$transaction).toHaveBeenCalledOnce();
   });
+
+  it("400s on a malformed JSON body", async () => {
+    sessionMock.getPlayerIdCookie.mockResolvedValue("player_1");
+    prismaMock.pool.findUnique.mockResolvedValue(member);
+    const bad = { json: async () => { throw new SyntaxError("Unexpected token"); }, headers: new Headers() };
+    const res = await savePicks(bad as unknown as NextRequest, params("ABC234"));
+    expect(res.status).toBe(400);
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("400s when picks is not an array", async () => {
+    sessionMock.getPlayerIdCookie.mockResolvedValue("player_1");
+    prismaMock.pool.findUnique.mockResolvedValue(member);
+    const res = await savePicks(req({ picks: { round: "WINNER", teamCode: "BRA" } }), params("ABC234"));
+    expect(res.status).toBe(400);
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("400s on an unknown team code (instead of a 500 from the FK)", async () => {
+    sessionMock.getPlayerIdCookie.mockResolvedValue("player_1");
+    prismaMock.pool.findUnique.mockResolvedValue(member);
+    const res = await savePicks(req({ picks: [{ round: "WINNER", teamCode: "XXX" }] }), params("ABC234"));
+    expect(res.status).toBe(400);
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("400s on a non-object pick or an unknown group", async () => {
+    sessionMock.getPlayerIdCookie.mockResolvedValue("player_1");
+    prismaMock.pool.findUnique.mockResolvedValue(member);
+    expect((await savePicks(req({ picks: [null] }), params("ABC234"))).status).toBe(400);
+    const res = await savePicks(req({ picks: [{ round: "GROUP", teamCode: "BRA", groupId: "Z" }] }), params("ABC234"));
+    expect(res.status).toBe(400);
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
 });
 
 // ── POST /api/admin/results ─────────────────────────────────────────────────────
@@ -221,6 +266,42 @@ describe("POST /api/admin/results", () => {
   it("401s without the admin token", async () => {
     const res = await adminResults(req({ kind: "team", code: "BRA", patch: {} }));
     expect(res.status).toBe(401);
+  });
+
+  it("401s with a wrong admin token (including a prefix of the real one)", async () => {
+    for (const token of ["nope", "test-toke", "test-token-extra"]) {
+      const res = await adminResults(req({ kind: "team", code: "BRA", patch: {} }, { "x-admin-token": token }));
+      expect(res.status).toBe(401);
+    }
+    expect(prismaMock.team.update).not.toHaveBeenCalled();
+  });
+
+  it("401s for everyone when ADMIN_TOKEN is unset", async () => {
+    vi.stubEnv("ADMIN_TOKEN", "");
+    const res = await adminResults(req({ kind: "team", code: "BRA", patch: {} }, { "x-admin-token": "" }));
+    expect(res.status).toBe(401);
+  });
+
+  it("only writes whitelisted result columns", async () => {
+    prismaMock.team.update.mockResolvedValue({ code: "BRA" });
+    prismaMock.pool.update.mockResolvedValue({ id: "pool_1", locked: true });
+    const auth = { "x-admin-token": "test-token" };
+    await adminResults(req({
+      kind: "team", code: "BRA",
+      patch: { wonGroup: true, reachedRound: "FINAL4", isChampion: false, name: "Hacked", group: "Z", code: "XXX" },
+    }, auth));
+    expect(prismaMock.team.update).toHaveBeenCalledWith({
+      where: { code: "BRA" },
+      data: { wonGroup: true, reachedRound: "FINAL4", isChampion: false },
+    });
+    await adminResults(req({ kind: "pool", id: "pool_1", patch: { locked: true, joinCode: "OWNED1", name: "x" } }, auth));
+    expect(prismaMock.pool.update).toHaveBeenCalledWith({ where: { id: "pool_1" }, data: { locked: true } });
+  });
+
+  it("400s on a malformed JSON body", async () => {
+    const bad = { json: async () => { throw new SyntaxError("bad"); }, headers: new Headers({ "x-admin-token": "test-token" }) };
+    const res = await adminResults(bad as unknown as NextRequest);
+    expect(res.status).toBe(400);
   });
 
   it("updates a team's result columns with a valid token", async () => {
@@ -376,5 +457,26 @@ describe("POST /api/admin/fetch-results", () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("network down"))));
     const res = await fetchResults(req({}, { "x-admin-token": "test-token" }));
     expect(res.status).toBe(502);
+  });
+});
+
+// ── GET /api/health ──────────────────────────────────────────────────────────────
+describe("GET /api/health", () => {
+  it("reports ok with the team count", async () => {
+    prismaMock.$queryRaw.mockResolvedValue([{ "?column?": 1 }]);
+    prismaMock.team.count.mockResolvedValue(48);
+    const res = await health();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, teams: 48 });
+  });
+
+  it("returns a generic error without leaking the DB message", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    prismaMock.$queryRaw.mockRejectedValue(new Error("password authentication failed for user neondb_owner"));
+    const res = await health();
+    const data = await res.json();
+    expect(res.status).toBe(500);
+    expect(data.ok).toBe(false);
+    expect(JSON.stringify(data)).not.toMatch(/password|neondb_owner/);
   });
 });

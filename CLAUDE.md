@@ -91,8 +91,13 @@ page in the same commit.
 
 - One change per branch, one PR per branch — that's the existing history, and
   both CI workflows run on every PR.
-- Secrets live in Vercel env vars (`ADMIN_TOKEN`, `FOOTBALL_API_KEY`,
-  `SENTRY_DSN`), never in the repo. `.env*` is gitignored.
+- Secrets live in Vercel env vars (`ADMIN_TOKEN`, optional `SESSION_SECRET`,
+  `FOOTBALL_API_KEY`, `SENTRY_DSN`) and GitHub repo secrets
+  (`DATABASE_URL_UNPOOLED`, `BACKUP_PASSPHRASE` for the encrypted backup), never
+  in the repo. `.env*` is gitignored.
+- The player cookie is HMAC-signed (`lib/session.ts`); its key is
+  `SESSION_SECRET`, else derived from `ADMIN_TOKEN`, so rotating that key signs
+  every player out.
 - Sentry is scaffolded but inert until its DSN vars are set; don't assume it's
   reporting.
 - `lib/rate-limit.ts` is in-memory and per-instance — best-effort, not a global

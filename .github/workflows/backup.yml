@@ -1,8 +1,19 @@
 name: Database backup
 
-# Logical pg_dump of the Neon database, stored as a downloadable 90-day
-# artifact. Runs daily and on demand. Activate by adding a repo secret
-# DATABASE_URL_UNPOOLED (the direct Neon URL from Vercel → Settings → Env Vars).
+# Logical pg_dump of the Neon database, encrypted, stored as a downloadable
+# 90-day artifact. Runs daily and on demand. Needs two repo secrets:
+#   DATABASE_URL_UNPOOLED — the direct Neon URL (Vercel → Settings → Env Vars)
+#   BACKUP_PASSPHRASE     — a long random passphrase; keep a copy somewhere safe,
+#                           a backup can't be restored without it.
+#
+# The repo is public, so artifacts are downloadable by any signed-in GitHub
+# user: the dump is encrypted (gpg, AES-256) before upload, and the job fails
+# rather than upload plaintext if BACKUP_PASSPHRASE is missing.
+#
+# To restore: download and unzip the artifact, then
+#   gpg --decrypt worldcup-YYYYMMDD-HHMMSS.sql.gz.gpg > worldcup-YYYYMMDD-HHMMSS.sql.gz
+#   (gpg prompts for BACKUP_PASSPHRASE)
+#   npm run db:restore -- worldcup-YYYYMMDD-HHMMSS.sql.gz   # OVERWRITES the target
 
 on:
   schedule:
@@ -23,13 +34,19 @@ jobs:
           # which refuses to dump a Postgres 17 server.
           echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
 
-      - name: Dump database
+      - name: Dump and encrypt database
         env:
           DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
         run: |
           set -euo pipefail
           if [ -z "${DATABASE_URL_UNPOOLED:-}" ]; then
             echo "::error::Missing repo secret DATABASE_URL_UNPOOLED — add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          # Fail closed: this repo is public, so never upload a plaintext dump.
+          if [ -z "${BACKUP_PASSPHRASE:-}" ]; then
+            echo "::error::Missing repo secret BACKUP_PASSPHRASE — add it under Settings → Secrets and variables → Actions. Refusing to upload an unencrypted backup."
             exit 1
           fi
           pg_dump --version
@@ -43,11 +60,17 @@ jobs:
             echo "::error::Dump is only ${SIZE} bytes — treating as failed."
             exit 1
           fi
+          # Encrypt; the passphrase goes in on stdin, never on the command line.
+          printf '%s' "$BACKUP_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback \
+            --symmetric --cipher-algo AES256 --passphrase-fd 0 \
+            --output "$OUT.gpg" "$OUT"
+          rm -f "$OUT"
           ls -lh backups
 
       - name: Upload backup artifact
         uses: actions/upload-artifact@v4
         with:
           name: db-backup-${{ github.run_id }}
-          path: backups/*.sql.gz
+          path: backups/*.sql.gz.gpg
+          if-no-files-found: error
           retention-days: 90

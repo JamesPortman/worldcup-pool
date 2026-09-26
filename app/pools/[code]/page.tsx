@@ -74,10 +74,10 @@ export default async function PoolDashboard({
           <h2 className="font-semibold mb-2">Players ({pool.players.length})</h2>
           <ul className="divide-y divide-neutral-200 dark:divide-neutral-800 rounded-md border border-neutral-200 dark:border-neutral-800">
             {players.map((p) => (
-              <li key={p.id} className="flex items-center justify-between px-3 py-2 text-sm">
+              <li key={p.displayName} className="flex items-center justify-between px-3 py-2 text-sm">
                 <span>
                   <Link
-                    href={`/pools/${pool.joinCode}/picks?player=${p.id}`}
+                    href={`/pools/${pool.joinCode}/picks?player=${encodeURIComponent(p.displayName)}`}
                     className="font-medium hover:underline text-[color:var(--color-brand)]"
                   >
                     {p.displayName}

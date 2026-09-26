@@ -5,6 +5,7 @@ import {
   type ProviderStanding,
   type ProviderMatch,
 } from "@/lib/results";
+import { isAdmin } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -15,8 +16,7 @@ const COMPETITION = process.env.FOOTBALL_COMPETITION ?? "WC"; // World Cup
 // returns PROPOSED result flags per team (it does NOT write anything) — the admin
 // reviews them and applies via /api/admin/results. Needs a free FOOTBALL_API_KEY.
 export async function POST(req: NextRequest) {
-  const token = req.headers.get("x-admin-token");
-  if (!process.env.ADMIN_TOKEN || token !== process.env.ADMIN_TOKEN) {
+  if (!isAdmin(req)) {
     return NextResponse.json({ error: "Invalid admin token." }, { status: 401 });
   }
   const key = process.env.FOOTBALL_API_KEY;

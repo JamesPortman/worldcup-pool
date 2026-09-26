@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getPlayerIdCookie } from "@/lib/session";
 import { picksLocked } from "@/lib/lock";
-import { ROUNDS, PICKS_PER_ROUND, type RoundKey } from "@/data/worldcup2026";
+import { ROUNDS, PICKS_PER_ROUND, groups, teams, type RoundKey } from "@/data/worldcup2026";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +13,8 @@ interface IncomingPick {
 }
 
 const VALID_ROUNDS = new Set<string>(ROUNDS.map((r) => r.key));
+const VALID_TEAMS = new Set<string>(teams.map((t) => t.code));
+const VALID_GROUPS = new Set<string>(groups);
 
 // Replaces the player's entire pick set with whatever is posted. Pool must not be locked.
 export async function POST(
@@ -33,13 +35,27 @@ export async function POST(
   }
   if (picksLocked(pool)) return NextResponse.json({ error: "Picks are closed." }, { status: 400 });
 
-  const body = (await req.json()) as { picks?: IncomingPick[] };
-  const picks = body.picks ?? [];
+  let body: { picks?: unknown };
+  try {
+    body = (await req.json()) ?? {};
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON." }, { status: 400 });
+  }
+  const picks = (body.picks ?? []) as IncomingPick[];
+  if (!Array.isArray(picks)) {
+    return NextResponse.json({ error: "picks must be an array." }, { status: 400 });
+  }
 
   // Validate
   for (const p of picks) {
+    if (!p || typeof p !== "object") {
+      return NextResponse.json({ error: "Invalid pick." }, { status: 400 });
+    }
     if (!VALID_ROUNDS.has(p.round)) {
       return NextResponse.json({ error: `Invalid round: ${p.round}` }, { status: 400 });
+    }
+    if (typeof p.teamCode !== "string" || !VALID_TEAMS.has(p.teamCode)) {
+      return NextResponse.json({ error: `Unknown team: ${p.teamCode}` }, { status: 400 });
     }
   }
 
@@ -63,6 +79,9 @@ export async function POST(
       const seen = new Set<string>();
       for (const p of arr) {
         if (!p.groupId) return NextResponse.json({ error: "GROUP picks require groupId." }, { status: 400 });
+        if (!VALID_GROUPS.has(p.groupId)) {
+          return NextResponse.json({ error: `Invalid group: ${p.groupId}` }, { status: 400 });
+        }
         if (seen.has(p.groupId)) {
           return NextResponse.json({ error: `Duplicate group winner for ${p.groupId}.` }, { status: 400 });
         }

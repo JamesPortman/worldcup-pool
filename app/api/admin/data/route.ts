@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { isAdmin } from "@/lib/admin-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -8,9 +9,7 @@ export const dynamic = "force-dynamic";
 // player data out of the public /admin HTML — the page renders nothing sensitive
 // until the token is verified here.
 export async function POST(req: NextRequest) {
-  const token = req.headers.get("x-admin-token");
-  const expected = process.env.ADMIN_TOKEN;
-  if (!expected || token !== expected) {
+  if (!isAdmin(req)) {
     return NextResponse.json({ error: "Invalid admin token." }, { status: 401 });
   }
 

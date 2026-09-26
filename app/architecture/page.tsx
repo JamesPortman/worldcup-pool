@@ -76,8 +76,8 @@ export default async function ArchitecturePage({
             <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4">
               <div className="font-semibold">Daily automatic backup</div>
               <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-                A scheduled GitHub Action runs <code>pg_dump</code> every day, storing
-                each snapshot as a 90-day downloadable artifact.
+                A scheduled GitHub Action runs <code>pg_dump</code> every day, encrypting
+                each snapshot (gpg, AES-256) before storing it as a 90-day artifact.
               </p>
             </div>
             <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4">
@@ -152,7 +152,7 @@ export default async function ArchitecturePage({
               title="Player"
               subtitle="A person in one pool (no auth)"
               fields={[
-                ["id", "cuid, PK — stored in cookie"],
+                ["id", "cuid, PK — signed into the session cookie; never sent to other players"],
                 ["displayName", "string"],
                 ["poolId", "FK → Pool (cascade)"],
                 ["joinedAt", "datetime"],
@@ -198,7 +198,7 @@ export default async function ArchitecturePage({
               steps={[
                 "HomeClient POSTs to apiUrl(\"/api/pools\") or apiUrl(\"/api/pools/[code]/join\").",
                 "Route handler creates the Pool/Player and calls setPlayerIdCookie().",
-                "wcpool_pid (httpOnly, 90-day) is written; client routes to /pools/[code].",
+                "Signed wcpool_session (httpOnly, 90-day, path /worldcup) is written; client routes to /pools/[code].",
               ]}
             />
             <FlowCard
@@ -337,9 +337,13 @@ export default async function ArchitecturePage({
           <div>
             <h2 className="text-xl font-semibold mb-3">7 · Security &amp; sessions</h2>
             <ul className="text-sm space-y-2 text-neutral-700 dark:text-neutral-300 list-disc pl-5">
-              <li>No passwords. Identity = the <code>wcpool_pid</code> cookie (httpOnly, SameSite=Lax).</li>
-              <li>The cookie alone grants nothing: every API route verifies the player belongs to the pool named in the URL.</li>
-              <li>Every <code>/api/admin/*</code> route — reads included — is gated by a server-checked <code>ADMIN_TOKEN</code> (sent as <code>x-admin-token</code>); the <code>/admin</code> HTML renders nothing sensitive until the token is verified.</li>
+              <li>No passwords. Identity = the <code>wcpool_session</code> cookie: <code>playerId.hmac</code>, HMAC-SHA256 signed and checked with <code>timingSafeEqual</code> in <code>lib/session.ts</code> (httpOnly, SameSite=Lax, <code>Secure</code> in production, scoped to <code>/worldcup</code>). An unsigned or tampered cookie is treated as no session.</li>
+              <li>Signing key: <code>SESSION_SECRET</code>, else derived from <code>ADMIN_TOKEN</code>; production refuses to sign without one, dev/test use a fixed key. Changing the key signs everyone out.</li>
+              <li>Re-joining a pool with an existing display name signs you in as that player — by design (no accounts), so the pool code plus a name is the credential.</li>
+              <li>Other players&apos; ids never reach the browser: the leaderboard and player list link to <code>picks?player=&lt;display name&gt;</code>.</li>
+              <li>The cookie alone grants nothing: every API route verifies the player belongs to the pool named in the URL. The picks API validates JSON shape, rounds, groups and team codes before writing.</li>
+              <li>Every <code>/api/admin/*</code> route — reads included — is gated by a server-checked <code>ADMIN_TOKEN</code> (sent as <code>x-admin-token</code>, compared in constant time by <code>lib/admin-auth.ts</code>); <code>/api/admin/results</code> writes only whitelisted result columns. The <code>/admin</code> HTML renders nothing sensitive until the token is verified.</li>
+              <li>Public routes return generic 500 messages; the detail is logged server-side only.</li>
               <li>Pool creation (5/min) and joining (15/min) are rate-limited per client IP by <code>lib/rate-limit.ts</code> — in-memory and per-instance, so best-effort only.</li>
               <li>Viewing another player&apos;s picks reuses <code>PicksClient</code> in a <code>locked</code> (read-only) mode.</li>
               <li>Picks close when the admin locks the pool <em>or</em> the global deadline in <code>lib/lock.ts</code> passes (end of Jun 10, 2026) — enforced in both the picks API and UI.</li>
@@ -382,8 +386,9 @@ export default async function ArchitecturePage({
               <h3 className="font-semibold mb-2">Automated (GitHub Actions)</h3>
               <ul className="text-sm space-y-1.5 text-neutral-700 dark:text-neutral-300 list-disc pl-5">
                 <li><code>.github/workflows/backup.yml</code> runs <code>pg_dump</code> daily + on demand.</li>
-                <li>Each dump is uploaded as a <strong>90-day workflow artifact</strong>.</li>
-                <li>Needs a <code>DATABASE_URL_UNPOOLED</code> repo secret to run.</li>
+                <li>Each dump is encrypted with gpg (AES-256, passphrase fed on stdin) and only the <code>.gpg</code> is uploaded as a <strong>90-day workflow artifact</strong> — the repo is public, so artifacts are visible to any signed-in GitHub user.</li>
+                <li>Needs <code>DATABASE_URL_UNPOOLED</code> and <code>BACKUP_PASSPHRASE</code> repo secrets; without the passphrase the job fails rather than upload plaintext.</li>
+                <li>Restore: <code>gpg --decrypt</code> the artifact, then <code>npm run db:restore</code>.</li>
                 <li>Neon point-in-time restore is a short-window safety net; these dumps are the durable copy.</li>
               </ul>
             </div>
@@ -414,7 +419,7 @@ export default async function ArchitecturePage({
     admin/players/[id]/route.ts    delete a player (picks cascade)
     health/route.ts                DB liveness check
 components/   Navigation (client · active-link) · HeroBanner · ThemeToggle
-lib/          db.ts (Prisma singleton) · session.ts (cookie)
+lib/          db.ts (Prisma singleton) · session.ts (signed cookie) · admin-auth.ts
               site.ts (BASE_PATH · apiUrl) · rate-limit.ts (in-memory)
               scoring.ts (pure, cumulative) · lock.ts (pick deadline)
               results.ts (map providers + derive fetched results)
@@ -424,7 +429,7 @@ prisma/       schema.prisma · seed.ts
 scripts/      backup-db.sh · restore-db.sh · db-url.sh
 instrumentation*.ts · app/global-error.tsx   Sentry (inert until DSN set)
 .github/      workflows/ci.yml (lint · test · build) · e2e.yml (Playwright + Postgres)
-              workflows/backup.yml (scheduled pg_dump)
+              workflows/backup.yml (scheduled, encrypted pg_dump)
 __tests__/    vitest unit + component tests (Prisma mocked)
 e2e/          playwright: smoke · admin (public pages) · flow (real DB)`}
           </pre>
@@ -501,7 +506,7 @@ function RuntimeDiagram() {
       title: "Browser — React 19 client",
       lines: [
         "Client components: HomeClient · PicksClient · LeaderboardClient · AdminClient · Navigation · ThemeToggle",
-        "State: useState/useMemo bracket model · wcpool_pid cookie (httpOnly)",
+        "State: useState/useMemo bracket model · signed wcpool_session cookie (httpOnly)",
       ],
     },
     {
@@ -510,7 +515,7 @@ function RuntimeDiagram() {
       lines: [
         "Server Components render pages (dynamic = force-dynamic)",
         "Route Handlers /api/* — pools · join · picks · health · admin/{data,results,fetch-results,players}",
-        "lib/session.ts reads/writes the player cookie",
+        "lib/session.ts signs/verifies the player cookie",
       ],
     },
     {
