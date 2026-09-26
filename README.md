@@ -85,7 +85,7 @@ Player session cookies are HMAC-signed with `SESSION_SECRET`, or, when that isn'
 set, with a key derived from `ADMIN_TOKEN` — so set `SESSION_SECRET` if you want
 to rotate the admin token without signing every player out. Changing whichever
 key is in use signs everyone out; players get back in by re-joining with the same
-name.
+name, but only view-only (see below).
 
 ### 5. Deploy
 
@@ -116,6 +116,7 @@ npm run db:seed
 ## Running the pool day-to-day
 
 - **Before kickoff:** each player joins with the code and submits picks. Picks can be edited until the pool locks — either when you lock it from `/worldcup/admin`, or automatically at the fixed deadline in `lib/lock.ts` (`PICKS_LOCK_AT`: end of June 10, 2026 Eastern, the day before kickoff), whichever comes first. Once locked, new players can't join, but existing players can still sign back in (same name) to view their picks and the leaderboard.
+- **Signing back in is view-only.** There are no passwords, so typing an existing display name gives a read-only session; only the device the player joined on can edit their picks. A player who loses that cookie before the deadline (new phone, cleared browser) can still see their picks but can't change them.
 - **After each round:** in `/worldcup/admin`, toggle **Group winner** on the 12 group winners after the group stage. As the knockouts resolve, set each team's **stage reached** dropdown to the furthest stage it got to (Final 4, Final, or **Champion** for the team that wins the final) — earlier-round points are awarded automatically. Changes save instantly and the leaderboard reflects them on the next load. The admin page can also remove a player from a pool.
 - **Auto-fetch results (optional):** in `/worldcup/admin`, the **"Fetch latest results"** button pulls live standings + knockout results from [football-data.org](https://www.football-data.org/) and **stages the changes for you to review** (group winners, Final-4, finalists, champion) — nothing is saved until you click **Apply**. It maps the provider's teams to ours by 3-letter code / name; any it can't match are flagged so you can set them by hand. Enable it by setting a free **`FOOTBALL_API_KEY`** env var on Vercel (the World Cup competition is on the free tier).
 

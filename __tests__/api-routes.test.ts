@@ -15,6 +15,7 @@ const { prismaMock, sessionMock } = vi.hoisted(() => ({
     $queryRaw: vi.fn(),
   },
   sessionMock: {
+    getSession: vi.fn(),
     getPlayerIdCookie: vi.fn(),
     setPlayerIdCookie: vi.fn(),
     clearPlayerIdCookie: vi.fn(),
@@ -138,25 +139,45 @@ describe("POST /api/pools/[code]/join", () => {
     expect(prismaMock.player.create).not.toHaveBeenCalled();
   });
 
-  it("reuses an existing player with the same name (returning visitor)", async () => {
+  it("signs a returning name back in view-only (a name alone can't unlock edits)", async () => {
     prismaMock.pool.findUnique.mockResolvedValue({ id: "pool_1", locked: false });
     prismaMock.player.findUnique.mockResolvedValue({ id: "player_9" });
+    sessionMock.getSession.mockResolvedValue(null); // a different device
     const res = await joinPool(req({ displayName: "Sam" }), params("ABC234"));
     const data = await res.json();
     expect(res.status).toBe(200);
-    expect(data.playerId).toBe("player_9");
+    expect(data).toMatchObject({ playerId: "player_9", viewOnly: true });
     expect(prismaMock.player.create).not.toHaveBeenCalled();
-    expect(sessionMock.setPlayerIdCookie).toHaveBeenCalledWith("player_9");
+    expect(sessionMock.setPlayerIdCookie).toHaveBeenCalledWith("player_9", { canEdit: false });
   });
 
-  it("creates a new player when the name is new", async () => {
+  it("keeps editing rights when the player's own editing session rejoins", async () => {
+    prismaMock.pool.findUnique.mockResolvedValue({ id: "pool_1", locked: false });
+    prismaMock.player.findUnique.mockResolvedValue({ id: "player_9" });
+    sessionMock.getSession.mockResolvedValue({ playerId: "player_9", canEdit: true });
+    const data = await (await joinPool(req({ displayName: "Sam" }), params("ABC234"))).json();
+    expect(data.viewOnly).toBe(false);
+    expect(sessionMock.setPlayerIdCookie).toHaveBeenCalledWith("player_9", { canEdit: true });
+  });
+
+  it("does not upgrade someone else's editing session to this player", async () => {
+    prismaMock.pool.findUnique.mockResolvedValue({ id: "pool_1", locked: false });
+    prismaMock.player.findUnique.mockResolvedValue({ id: "player_9" });
+    sessionMock.getSession.mockResolvedValue({ playerId: "player_other", canEdit: true });
+    const data = await (await joinPool(req({ displayName: "Sam" }), params("ABC234"))).json();
+    expect(data.viewOnly).toBe(true);
+    expect(sessionMock.setPlayerIdCookie).toHaveBeenCalledWith("player_9", { canEdit: false });
+  });
+
+  it("creates a new player with an editing session when the name is new", async () => {
     prismaMock.pool.findUnique.mockResolvedValue({ id: "pool_1", locked: false });
     prismaMock.player.findUnique.mockResolvedValue(null);
     prismaMock.player.create.mockResolvedValue({ id: "player_new" });
     const res = await joinPool(req({ displayName: "New" }), params("ABC234"));
     const data = await res.json();
     expect(res.status).toBe(200);
-    expect(data.playerId).toBe("player_new");
+    expect(data).toMatchObject({ playerId: "player_new", viewOnly: false });
+    expect(sessionMock.setPlayerIdCookie).toHaveBeenCalledWith("player_new");
   });
 
   it("returns a clean 500 (not a raw crash) if the DB throws", async () => {
@@ -173,27 +194,35 @@ describe("POST /api/pools/[code]/picks", () => {
   const member = { id: "pool_1", locked: false, players: [{ id: "player_1" }] };
 
   it("401s when not signed in", async () => {
-    sessionMock.getPlayerIdCookie.mockResolvedValue(null);
+    sessionMock.getSession.mockResolvedValue(null);
     const res = await savePicks(req({ picks: [] }), params("ABC234"));
     expect(res.status).toBe(401);
   });
 
   it("403s when the player is not a member of the pool", async () => {
-    sessionMock.getPlayerIdCookie.mockResolvedValue("player_1");
+    sessionMock.getSession.mockResolvedValue({ playerId: "player_1", canEdit: true });
     prismaMock.pool.findUnique.mockResolvedValue({ id: "pool_1", locked: false, players: [] });
     const res = await savePicks(req({ picks: [] }), params("ABC234"));
     expect(res.status).toBe(403);
   });
 
+  it("403s a view-only session (signed back in by name) without writing", async () => {
+    sessionMock.getSession.mockResolvedValue({ playerId: "player_1", canEdit: false });
+    prismaMock.pool.findUnique.mockResolvedValue(member);
+    const res = await savePicks(req({ picks: [{ round: "WINNER", teamCode: "BRA" }] }), params("ABC234"));
+    expect(res.status).toBe(403);
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
+  });
+
   it("rejects writes when the pool is locked", async () => {
-    sessionMock.getPlayerIdCookie.mockResolvedValue("player_1");
+    sessionMock.getSession.mockResolvedValue({ playerId: "player_1", canEdit: true });
     prismaMock.pool.findUnique.mockResolvedValue({ ...member, locked: true });
     const res = await savePicks(req({ picks: [] }), params("ABC234"));
     expect(res.status).toBe(400);
   });
 
   it("rejects too many picks for a round", async () => {
-    sessionMock.getPlayerIdCookie.mockResolvedValue("player_1");
+    sessionMock.getSession.mockResolvedValue({ playerId: "player_1", canEdit: true });
     prismaMock.pool.findUnique.mockResolvedValue(member);
     const picks = [
       { round: "WINNER", teamCode: "BRA" },
@@ -204,14 +233,14 @@ describe("POST /api/pools/[code]/picks", () => {
   });
 
   it("rejects a GROUP pick without a groupId", async () => {
-    sessionMock.getPlayerIdCookie.mockResolvedValue("player_1");
+    sessionMock.getSession.mockResolvedValue({ playerId: "player_1", canEdit: true });
     prismaMock.pool.findUnique.mockResolvedValue(member);
     const res = await savePicks(req({ picks: [{ round: "GROUP", teamCode: "BRA" }] }), params("ABC234"));
     expect(res.status).toBe(400);
   });
 
   it("atomically replaces picks on a valid submission", async () => {
-    sessionMock.getPlayerIdCookie.mockResolvedValue("player_1");
+    sessionMock.getSession.mockResolvedValue({ playerId: "player_1", canEdit: true });
     prismaMock.pool.findUnique.mockResolvedValue(member);
     prismaMock.$transaction.mockResolvedValue([]);
     const picks = [
@@ -227,7 +256,7 @@ describe("POST /api/pools/[code]/picks", () => {
   });
 
   it("400s on a malformed JSON body", async () => {
-    sessionMock.getPlayerIdCookie.mockResolvedValue("player_1");
+    sessionMock.getSession.mockResolvedValue({ playerId: "player_1", canEdit: true });
     prismaMock.pool.findUnique.mockResolvedValue(member);
     const bad = { json: async () => { throw new SyntaxError("Unexpected token"); }, headers: new Headers() };
     const res = await savePicks(bad as unknown as NextRequest, params("ABC234"));
@@ -236,7 +265,7 @@ describe("POST /api/pools/[code]/picks", () => {
   });
 
   it("400s when picks is not an array", async () => {
-    sessionMock.getPlayerIdCookie.mockResolvedValue("player_1");
+    sessionMock.getSession.mockResolvedValue({ playerId: "player_1", canEdit: true });
     prismaMock.pool.findUnique.mockResolvedValue(member);
     const res = await savePicks(req({ picks: { round: "WINNER", teamCode: "BRA" } }), params("ABC234"));
     expect(res.status).toBe(400);
@@ -244,7 +273,7 @@ describe("POST /api/pools/[code]/picks", () => {
   });
 
   it("400s on an unknown team code (instead of a 500 from the FK)", async () => {
-    sessionMock.getPlayerIdCookie.mockResolvedValue("player_1");
+    sessionMock.getSession.mockResolvedValue({ playerId: "player_1", canEdit: true });
     prismaMock.pool.findUnique.mockResolvedValue(member);
     const res = await savePicks(req({ picks: [{ round: "WINNER", teamCode: "XXX" }] }), params("ABC234"));
     expect(res.status).toBe(400);
@@ -252,7 +281,7 @@ describe("POST /api/pools/[code]/picks", () => {
   });
 
   it("400s on a non-object pick or an unknown group", async () => {
-    sessionMock.getPlayerIdCookie.mockResolvedValue("player_1");
+    sessionMock.getSession.mockResolvedValue({ playerId: "player_1", canEdit: true });
     prismaMock.pool.findUnique.mockResolvedValue(member);
     expect((await savePicks(req({ picks: [null] }), params("ABC234"))).status).toBe(400);
     const res = await savePicks(req({ picks: [{ round: "GROUP", teamCode: "BRA", groupId: "Z" }] }), params("ABC234"));

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { setPlayerIdCookie } from "@/lib/session";
+import { getSession, setPlayerIdCookie } from "@/lib/session";
 import { rateLimit, clientKey } from "@/lib/rate-limit";
 import { picksLocked } from "@/lib/lock";
 
@@ -23,7 +23,8 @@ export async function POST(
     if (!pool) return NextResponse.json({ error: "Pool not found." }, { status: 404 });
 
     // If a player with this name already exists in this pool, treat the request as
-    // "I'm coming back as that player" and re-issue their cookie.
+    // "I'm coming back as that player". There are no passwords, so a name alone
+    // only gets a view-only session: anyone with the pool code could type it.
     const existing = await prisma.player.findUnique({
       where: { poolId_displayName: { poolId: pool.id, displayName: name } },
     });
@@ -38,11 +39,18 @@ export async function POST(
       );
     }
 
-    const player = existing
-      ?? (await prisma.player.create({ data: { poolId: pool.id, displayName: name } }));
+    if (existing) {
+      // Someone already holding this player's editing session (the device they
+      // joined on) keeps it; anyone else signs back in view-only.
+      const session = await getSession();
+      const canEdit = session?.playerId === existing.id && session.canEdit;
+      await setPlayerIdCookie(existing.id, { canEdit });
+      return NextResponse.json({ playerId: existing.id, poolId: pool.id, viewOnly: !canEdit });
+    }
 
+    const player = await prisma.player.create({ data: { poolId: pool.id, displayName: name } });
     await setPlayerIdCookie(player.id);
-    return NextResponse.json({ playerId: player.id, poolId: pool.id });
+    return NextResponse.json({ playerId: player.id, poolId: pool.id, viewOnly: false });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[POST /api/pools/[code]/join]", message);

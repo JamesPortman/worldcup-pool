@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { generateJoinCode, signPlayerId, verifyPlayerId } from "@/lib/session";
+import { generateJoinCode, signPlayerId, signSession, verifyPlayerId, verifySession } from "@/lib/session";
 
 const ALLOWED = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -92,5 +92,32 @@ describe("signPlayerId / verifyPlayerId", () => {
     vi.stubEnv("ADMIN_TOKEN", "");
     vi.stubEnv("NODE_ENV", "test");
     expect(verifyPlayerId(signPlayerId("player_1"))).toBe("player_1");
+  });
+});
+
+describe("view-only sessions (signed back in by name)", () => {
+  it("round-trips an editing and a view-only session", () => {
+    expect(verifySession(signSession("player_1"))).toEqual({ playerId: "player_1", canEdit: true });
+    expect(verifySession(signSession("player_1", false))).toEqual({ playerId: "player_1", canEdit: false });
+  });
+
+  it("keeps existing editing cookies valid", () => {
+    // signPlayerId is the pre-view-only format; those cookies must still edit.
+    expect(verifySession(signPlayerId("player_1"))).toEqual({ playerId: "player_1", canEdit: true });
+  });
+
+  it("can't turn a view-only cookie into an editing one", () => {
+    const view = signSession("player_1", false); // player_1.view.<sig>
+    const sig = view.split(".").pop();
+    expect(verifySession(`player_1.${sig}`)).toBeNull();
+  });
+
+  it("can't reuse an editing signature for a view cookie of another player", () => {
+    const sig = signSession("player_1").split(".").pop();
+    expect(verifySession(`player_2.view.${sig}`)).toBeNull();
+  });
+
+  it("verifyPlayerId still returns the id for either mode", () => {
+    expect(verifyPlayerId(signSession("player_1", false))).toBe("player_1");
   });
 });

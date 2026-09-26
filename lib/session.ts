@@ -2,8 +2,14 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { BASE_PATH } from "@/lib/site";
 
-// We identify a player by a signed playerId cookie: `<playerId>.<hmac>`. The
-// signature means a cookie can't be forged from a playerId alone; an unsigned or
+// We identify a player by a signed playerId cookie. Two shapes:
+//   `<playerId>.<hmac>`       — an editing session, issued when the player first
+//                               joins (or creates) the pool;
+//   `<playerId>.view.<hmac>`  — a view-only session, issued when someone signs
+//                               back in by typing an existing display name.
+// There are no passwords, so a display name alone must not unlock someone's
+// picks: anyone with the pool code could type it. The HMAC covers the mode, so
+// a view cookie can't be edited into an editing one, and an unsigned or
 // tampered value is treated as "no session". The pool join code lives in the
 // URL, and API routes still check that the playerId belongs to that pool.
 const COOKIE = "wcpool_session";
@@ -30,35 +36,64 @@ function sessionKey(): string {
   return DEV_KEY;
 }
 
-function sign(playerId: string): string {
-  return createHmac("sha256", sessionKey()).update(playerId).digest("base64url");
+const VIEW = "view";
+
+function sign(payload: string): string {
+  return createHmac("sha256", sessionKey()).update(payload).digest("base64url");
 }
 
-/** Cookie value for a playerId: `<playerId>.<signature>`. */
-export function signPlayerId(playerId: string): string {
-  return `${playerId}.${sign(playerId)}`;
+export interface Session {
+  playerId: string;
+  /** False for a view-only session (signed back in by name). */
+  canEdit: boolean;
 }
 
-/** The playerId from a signed cookie value, or null if unsigned/invalid. */
-export function verifyPlayerId(value: string | undefined | null): string | null {
+/** Cookie value for a session: `<playerId>.<sig>`, or `<playerId>.view.<sig>` when view-only. */
+export function signSession(playerId: string, canEdit = true): string {
+  const payload = canEdit ? playerId : `${playerId}.${VIEW}`;
+  return `${payload}.${sign(payload)}`;
+}
+
+/** The session in a signed cookie value, or null if unsigned/invalid. */
+export function verifySession(value: string | undefined | null): Session | null {
   if (!value) return null;
   const dot = value.lastIndexOf(".");
   if (dot <= 0) return null;
-  const playerId = value.slice(0, dot);
+  const payload = value.slice(0, dot);
   const given = Buffer.from(value.slice(dot + 1));
-  const expected = Buffer.from(sign(playerId));
+  const expected = Buffer.from(sign(payload));
   if (given.length !== expected.length || !timingSafeEqual(given, expected)) return null;
-  return playerId;
+  const viewOnly = payload.endsWith(`.${VIEW}`);
+  const playerId = viewOnly ? payload.slice(0, -(VIEW.length + 1)) : payload;
+  if (!playerId || playerId.includes(".")) return null;
+  return { playerId, canEdit: !viewOnly };
+}
+
+/** Cookie value for an editing session. */
+export function signPlayerId(playerId: string): string {
+  return signSession(playerId, true);
+}
+
+/** The playerId from a signed cookie value (either mode), or null if unsigned/invalid. */
+export function verifyPlayerId(value: string | undefined | null): string | null {
+  return verifySession(value)?.playerId ?? null;
+}
+
+export async function getSession(): Promise<Session | null> {
+  const store = await cookies();
+  return verifySession(store.get(COOKIE)?.value);
 }
 
 export async function getPlayerIdCookie(): Promise<string | null> {
-  const store = await cookies();
-  return verifyPlayerId(store.get(COOKIE)?.value);
+  return (await getSession())?.playerId ?? null;
 }
 
-export async function setPlayerIdCookie(playerId: string): Promise<void> {
+export async function setPlayerIdCookie(
+  playerId: string,
+  { canEdit = true }: { canEdit?: boolean } = {},
+): Promise<void> {
   const store = await cookies();
-  store.set(COOKIE, signPlayerId(playerId), {
+  store.set(COOKIE, signSession(playerId, canEdit), {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
