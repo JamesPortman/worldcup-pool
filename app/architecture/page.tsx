@@ -81,11 +81,12 @@ export default async function ArchitecturePage({
               </p>
             </div>
             <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4">
-              <div className="font-semibold">End-to-end tests guard every deploy</div>
+              <div className="font-semibold">Tests gate every deploy</div>
               <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-                Playwright runs the full create → pick → leaderboard flow against a real
-                Postgres in CI on every PR and push to <code>main</code>, and the unit
-                suite gates the production build — a failing test blocks the deploy.
+                Vercel&apos;s git auto-deploy is off for <code>main</code>. GitHub Actions
+                runs lint, the unit suite, the production build and Playwright&apos;s full
+                create → pick → leaderboard flow against a real Postgres; <code>main</code>{" "}
+                deploys only when all of them pass. Pull requests still get Vercel previews.
               </p>
             </div>
           </div>
@@ -109,11 +110,16 @@ export default async function ArchitecturePage({
           <h2 className="text-xl font-semibold mb-1">2 · CI/CD &amp; deployment topology</h2>
           <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
             <code>main</code> is branch-protected; all work lands via PRs. Every PR
-            and push to <code>main</code> runs two GitHub Actions workflows —{" "}
-            <code>ci.yml</code> (lint → unit tests → build, with a placeholder{" "}
-            <code>DATABASE_URL</code>) and <code>e2e.yml</code> (Playwright against an
-            ephemeral Postgres service). Each push also builds on Vercel, and that
-            build is gated by the unit-test suite before Next.js compiles.
+            and push to <code>main</code> runs <code>ci.yml</code>: lint → unit tests →
+            build (with a placeholder <code>DATABASE_URL</code>), and Playwright against
+            an ephemeral Postgres service. On <code>main</code>, a deploy job runs only
+            after both pass: <code>vercel pull → build → deploy --prebuilt --prod</code>.
+            Vercel&apos;s own git deploys are disabled for <code>main</code>
+            (<code>vercel.json</code>) but still build previews for pull requests. The
+            workflow runs with a read-only <code>GITHUB_TOKEN</code> and pins every
+            action to a commit SHA rather than a movable tag; Dependabot checks the
+            pins monthly and opens one grouped PR, which lands through the same checks
+            as any other change.
           </p>
           <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-4 overflow-x-auto text-neutral-800 dark:text-neutral-100">
             <PipelineDiagram />
@@ -338,7 +344,7 @@ export default async function ArchitecturePage({
             <h2 className="text-xl font-semibold mb-3">7 · Security &amp; sessions</h2>
             <ul className="text-sm space-y-2 text-neutral-700 dark:text-neutral-300 list-disc pl-5">
               <li>No passwords. Identity = the <code>wcpool_session</code> cookie: <code>playerId.hmac</code> (editing) or <code>playerId.view.hmac</code> (view-only), HMAC-SHA256 signed over the id and the mode and checked with <code>timingSafeEqual</code> in <code>lib/session.ts</code> (httpOnly, SameSite=Lax, <code>Secure</code> in production, scoped to <code>/worldcup</code>). An unsigned or tampered cookie is treated as no session.</li>
-              <li>Signing key: <code>SESSION_SECRET</code>, else derived from <code>ADMIN_TOKEN</code>; production refuses to sign without one, dev/test use a fixed key. Changing the key signs everyone out.</li>
+              <li>Signing key: <code>SESSION_SECRET</code> only — deliberately independent of <code>ADMIN_TOKEN</code>, so the admin token can be rotated without signing players out and a leaked one can&apos;t forge sessions. Production refuses to sign without it; dev/test use a fixed key. Changing it signs everyone out.</li>
               <li>Re-joining a pool with an existing display name signs you in as that player <strong>view-only</strong>: there are no passwords, so the pool code plus a name must not unlock someone&apos;s picks. Only the session issued when the player first joined can edit (a device that already holds it keeps editing on re-join), and the picks API returns 403 to a view-only session.</li>
               <li>Other players&apos; ids never reach the browser: the leaderboard and player list link to <code>picks?player=&lt;display name&gt;</code>.</li>
               <li>The cookie alone grants nothing: every API route verifies the player belongs to the pool named in the URL. The picks API validates JSON shape, rounds, groups and team codes before writing.</li>
@@ -428,7 +434,7 @@ data/         worldcup2026.ts (48 teams, rounds, points) · ratings.ts (Elo)
 prisma/       schema.prisma · seed.ts
 scripts/      backup-db.sh · restore-db.sh · db-url.sh
 instrumentation*.ts · app/global-error.tsx   Sentry (inert until DSN set)
-.github/      workflows/ci.yml (lint · test · build) · e2e.yml (Playwright + Postgres)
+.github/      workflows/ci.yml (lint · test · build · Playwright + Postgres · deploy)
               workflows/backup.yml (scheduled, encrypted pg_dump)
 __tests__/    vitest unit + component tests (Prisma mocked)
 e2e/          playwright: smoke · admin (public pages) · flow (real DB)`}
@@ -587,8 +593,8 @@ function RuntimeDiagram() {
 function PipelineDiagram() {
   const stages: { x: number; title: string; lines: string[]; color: string }[] = [
     { x: 8, title: "Developer", lines: ["feature branch", "local: npm run build"], color: "#002868" },
-    { x: 196, title: "GitHub", lines: ["main (protected)", "Actions: ci.yml", "Actions: e2e.yml"], color: "#444" },
-    { x: 384, title: "Vercel Build", lines: ["prisma generate", "vitest run (gate)", "next build"], color: "#BF0A30" },
+    { x: 196, title: "GitHub", lines: ["main (protected)", "ci.yml: tests + e2e", "deploy after green"], color: "#444" },
+    { x: 384, title: "Vercel Build", lines: ["vercel build --prod", "vitest run", "next build"], color: "#BF0A30" },
     { x: 572, title: "Production", lines: ["CDN + Node fns", "→ Neon Postgres"], color: "#006847" },
   ];
 

@@ -82,7 +82,7 @@ page in the same commit.
 - `e2e/` — `smoke.spec.ts` hits public pages; `admin.spec.ts` (creates and
   locks a pool) and `flow.spec.ts` (create-pool → picks → leaderboard) run
   against a **real database**. CI gives them an ephemeral Postgres service
-  (`.github/workflows/e2e.yml`). A cloud session has no Postgres server, so the
+  (the `e2e` job in `.github/workflows/ci.yml`). A cloud session has no Postgres server, so the
   DB-backed specs can't run there — leave it to CI rather than working around it.
 - `vitest.config.mts` excludes `e2e/`, so `vitest` never tries to run Playwright
   specs.
