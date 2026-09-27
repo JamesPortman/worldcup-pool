@@ -45,11 +45,14 @@ npm run test:e2e     # Playwright e2e tests (auto-starts a dev server)
   exercise the real DB: a **full create-pool → picks → leaderboard flow**
   (`flow.spec.ts`) and the **admin token gate → lock a pool** path
   (`admin.spec.ts`, which uses `ADMIN_TOKEN`, defaulting to `test-token`). Both
-  run in CI against an ephemeral Postgres service (`.github/workflows/e2e.yml`);
+  run in CI against an ephemeral Postgres service (`.github/workflows/ci.yml`);
   locally they need a throwaway database (don't point them at production). Run
   `npx playwright install chromium` once before the first e2e run.
-- `npm run build` runs the unit suite **before** `next build`, so a failing
-  test blocks the production deploy.
+- Production deploys come from CI, not Vercel's git integration (disabled for
+  `main` in `vercel.json`): the deploy job in `ci.yml` runs only after lint,
+  unit tests, the build and the Playwright suite all pass. Pull requests still
+  get Vercel previews. `npm run build` also runs the unit suite before
+  `next build`.
 
 ## Deploy to Vercel
 
