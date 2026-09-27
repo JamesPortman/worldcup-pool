@@ -91,13 +91,13 @@ page in the same commit.
 
 - One change per branch, one PR per branch — that's the existing history, and
   both CI workflows run on every PR.
-- Secrets live in Vercel env vars (`ADMIN_TOKEN`, optional `SESSION_SECRET`,
+- Secrets live in Vercel env vars (`ADMIN_TOKEN`, `SESSION_SECRET`,
   `FOOTBALL_API_KEY`, `SENTRY_DSN`) and GitHub repo secrets
   (`DATABASE_URL_UNPOOLED`, `BACKUP_PASSPHRASE` for the encrypted backup), never
   in the repo. `.env*` is gitignored.
 - The player cookie is HMAC-signed (`lib/session.ts`); its key is
-  `SESSION_SECRET`, else derived from `ADMIN_TOKEN`, so rotating that key signs
-  every player out. Re-joining with an existing name issues a **view-only**
+  `SESSION_SECRET` only (required in production, independent of `ADMIN_TOKEN`),
+  and rotating it signs every player out. Re-joining with an existing name issues a **view-only**
   session (`playerId.view.hmac`); only the session from the original join can
   write picks. Check `getSession().canEdit`, not just the player id, on any
   route that changes a player's data.

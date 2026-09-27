@@ -23,15 +23,15 @@ const LEGACY_COOKIE = "wcpool_pid";
 // dev, the build and e2e work with zero config. Never used in production.
 const DEV_KEY = "wcpool-dev-session-key";
 
-// SESSION_SECRET if set; otherwise derived from ADMIN_TOKEN so existing
-// deployments keep working without a config change.
+// SESSION_SECRET is the only signing key. It used to fall back to a key derived
+// from ADMIN_TOKEN, which coupled the two: rotating the admin token signed every
+// player out, and anyone holding the admin token could forge player cookies.
+// Production now refuses to sign or verify without SESSION_SECRET.
 function sessionKey(): string {
   const secret = process.env.SESSION_SECRET;
   if (secret) return secret;
-  const admin = process.env.ADMIN_TOKEN;
-  if (admin) return createHmac("sha256", admin).update("wcpool-session-v1").digest("hex");
   if (process.env.NODE_ENV === "production") {
-    throw new Error("Session signing key missing — set SESSION_SECRET (or ADMIN_TOKEN).");
+    throw new Error("Session signing key missing — set SESSION_SECRET.");
   }
   return DEV_KEY;
 }

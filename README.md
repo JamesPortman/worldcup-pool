@@ -24,9 +24,9 @@ npm run dev          # http://localhost:3000/worldcup
 ```
 
 The app is mounted at `/worldcup`, so `http://localhost:3000/` itself 404s —
-that's expected. Locally, with no `SESSION_SECRET` or `ADMIN_TOKEN`, player
+that's expected. Locally, with no `SESSION_SECRET`, player
 cookies are signed with a built-in dev key; production refuses to start a
-session without one of them.
+session without it.
 
 ## Testing
 
@@ -78,13 +78,14 @@ In **Settings → Environment Variables**, add:
 | Key           | Value                                  | Environments        |
 |---------------|----------------------------------------|---------------------|
 | `ADMIN_TOKEN` | a long random string (you choose)      | Production, Preview |
-| `SESSION_SECRET` | *optional* — a long random string   | Production, Preview |
+| `SESSION_SECRET` | a different long random string     | Production, Preview |
 
 You'll need `ADMIN_TOKEN` on the `/worldcup/admin` page to enter results and lock pools.
-Player session cookies are HMAC-signed with `SESSION_SECRET`, or, when that isn't
-set, with a key derived from `ADMIN_TOKEN` — so set `SESSION_SECRET` if you want
-to rotate the admin token without signing every player out. Changing whichever
-key is in use signs everyone out; players get back in by re-joining with the same
+Player session cookies are HMAC-signed with `SESSION_SECRET`, which production
+requires — the app refuses to start a session without it. It is deliberately
+independent of `ADMIN_TOKEN`, so the admin token can be rotated freely and a
+leaked admin token can't forge player cookies. Changing `SESSION_SECRET` signs
+everyone out; players get back in by re-joining with the same
 name, but only view-only (see below).
 
 ### 5. Deploy
