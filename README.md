@@ -5,7 +5,7 @@ Built with [Claude Code](https://claude.com/claude-code) — [`CLAUDE.md`](CLAUD
 A bracket pool for the 2026 FIFA World Cup. Anyone with a 6-character pool code can join with a display name, make picks, and see a live leaderboard. No accounts, no passwords.
 
 - **Stack:** Next.js 16, React 19, Tailwind v4, Prisma + Postgres (Neon)
-- **Hosting:** Vercel (free tier is plenty)
+- **Hosting:** Vercel
 - **Auth:** name + pool code (HMAC-signed cookie player session)
 - **Path:** served under `/worldcup` (`BASE_PATH` in `lib/site.ts`), not at a domain root
 - **Scoring:** Group winner=1, Final 4=4, Semi-Final=8, Winner=16 (max 60)
